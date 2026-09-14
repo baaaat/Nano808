@@ -39,6 +39,11 @@ D9 est réservé à l'audio ; D10 reste libre dans cette V13.
 Tous les boutons utilisent la résistance de rappel interne. Le montage réel
 doit être vérifié pour les parasites, le rebond et les niveaux.
 
+Le firmware mémorise l'état de repos de D12 et D13 au démarrage et détecte
+l'appui comme un changement d'état. Le bouton START/STOP ou SHIFT ne doit donc
+pas être maintenu pendant la mise sous tension. Le câblage recommandé reste
+normalement ouvert, entre la broche et GND.
+
 ## Câblage et réglage des potentiomètres
 
 Chaque potentiomètre est câblé en parallèle, jamais en série : une extrémité

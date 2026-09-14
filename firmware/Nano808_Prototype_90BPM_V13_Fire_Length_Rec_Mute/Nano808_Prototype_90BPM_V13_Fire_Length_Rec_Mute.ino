@@ -178,6 +178,8 @@ bool oldFireButton = HIGH;
 bool oldRecButton = HIGH;
 bool oldStartStopButton = HIGH;
 bool shiftPressed = false;
+bool startStopIdleState = HIGH;
+bool shiftIdleState = HIGH;
 uint32_t lastShiftEdgeUs = 0;
 bool oldShiftButton = HIGH;
 uint32_t lastStepButtonEdgeUs = 0;
@@ -1013,16 +1015,16 @@ void updateControlsUI() {
   // voices already sounding are allowed to decay naturally.
   bool startStopRaw = digitalRead(PIN_START_STOP_BUTTON);
   bool shiftRaw = digitalRead(PIN_SHIFT_BUTTON);
-  if (shiftRaw != (shiftPressed ? LOW : HIGH) &&
+  if (shiftRaw != (shiftPressed ? (bool)!shiftIdleState : shiftIdleState) &&
       (uint32_t)(nowUs - lastShiftEdgeUs) >= BUTTON_DEBOUNCE_US) {
-    shiftPressed = (shiftRaw == LOW);
+    shiftPressed = (shiftRaw != shiftIdleState);
     lastShiftEdgeUs = nowUs;
   }
   if (startStopRaw != oldStartStopButton &&
       (uint32_t)(nowUs - lastStartStopButtonEdgeUs) >= BUTTON_DEBOUNCE_US) {
     oldStartStopButton = startStopRaw;
     lastStartStopButtonEdgeUs = nowUs;
-    if (startStopRaw == LOW) {
+    if (startStopRaw != startStopIdleState) {
       if (shiftPressed) {
         if (lastTapTempoUs != 0) {
           uint32_t interval = nowUs - lastTapTempoUs;
@@ -1206,8 +1208,10 @@ void setup() {
   pinMode(PIN_START_STOP_BUTTON, INPUT_PULLUP);
   pinMode(PIN_SHIFT_BUTTON, INPUT_PULLUP);
   pinMode(PIN_CLOCK_FUTURE, INPUT_PULLUP);
-  oldStartStopButton = digitalRead(PIN_START_STOP_BUTTON);
-  shiftPressed = digitalRead(PIN_SHIFT_BUTTON) == LOW;
+  startStopIdleState = digitalRead(PIN_START_STOP_BUTTON);
+  oldStartStopButton = startStopIdleState;
+  shiftIdleState = digitalRead(PIN_SHIFT_BUTTON);
+  shiftPressed = false;
 
   maxInit();
 

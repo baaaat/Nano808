@@ -41,6 +41,8 @@ indique MUTE ; aucun témoin de transport n'est affiché en haut.
 Les six potentiomètres sont raccordés entre 5 V et GND, curseur vers A0–A5.
 Les cinq boutons sont normalement ouverts entre leur broche et GND ; le firmware
 active `INPUT_PULLUP`. FIRE continue de déclencher un instrument muté.
+Au démarrage, D12 et D13 mémorisent leur état de repos : ne maintenir aucun de
+ces deux boutons appuyé pendant la mise sous tension.
 
 ## Organisation
 
