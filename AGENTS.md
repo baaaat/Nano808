@@ -26,3 +26,27 @@ Projet Eurorack sur Arduino Nano, de la même famille que Mutant et Freak : séq
 - Rapporter les vérifications réellement effectuées et leurs résultats.
 - Distinguer une compilation réussie d'une validation audio sur matériel.
 - Indiquer les essais matériels restant à réaliser, particulièrement après une modification de l'audio, du séquenceur ou des commandes.
+
+## Compilation Arduino
+
+Arduino CLI est installé et disponible dans le PATH.
+
+Pour Nano808, la cible finale est :
+
+`arduino:avr:nano`
+
+Après une modification du firmware, Codex peut compiler le projet avec Arduino CLI afin de vérifier :
+- les erreurs de compilation ;
+- l'utilisation de la Flash ;
+- l'utilisation de la SRAM.
+
+Codex peut corriger les erreurs de compilation provoquées par ses propres modifications.
+
+## Téléversement
+
+Ne jamais téléverser automatiquement le firmware sur une carte.
+
+Toute commande `arduino-cli upload` nécessite une autorisation explicite de l'utilisateur.
+
+La compilation est autorisée sans confirmation.
+Le téléversement ne l'est pas.

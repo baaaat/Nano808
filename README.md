@@ -1,37 +1,55 @@
 # Nano808
 
-Nano808 est un projet de module Eurorack basé sur Arduino Nano, de la même famille que Mutant et Freak. Les caractéristiques communes à ces projets restent à documenter.
+Prototype de boîte à rythmes Eurorack autour d'un Arduino Nano / ATmega328P.
+Le firmware présent est la V13 : séquenceur 16 pas, six voix de percussion,
+matrice MAX7219 et synthèse audio Mozzi.
 
-## Fonctionnalités prévues
+## État du dépôt
 
-- Séquenceur 16 pas.
-- Sortie audio Mozzi Hi-Fi sur D9/D10.
-- Bouton START/STOP.
-- Bouton FUNCTION/SHIFT, dont les fonctions détaillées restent à définir.
+Le firmware compile avec `arduino:avr:nano` et l'environnement installé
+(arduino:avr 1.8.8). Cette compilation ne valide pas le son ni le câblage sur
+matériel. Aucun téléversement automatique n'est effectué.
 
-La stabilité audio est la priorité du projet, y compris pendant le fonctionnement du séquenceur et les interactions avec les commandes.
+Le prototype utilise une horloge interne à 90 BPM. L'horloge externe sur D2 et
+le swing sont préparés dans le code mais ne sont pas fonctionnels dans cette
+V13.
 
-## État actuel
+## Fonctionnalités et commandes
 
-Le dépôt contient la documentation initiale. Les dossiers `firmware/` et `docs/` sont encore vides ; aucun firmware ni montage n'est validé à ce stade.
+- Six instruments : kick, snare, charleston fermé/ouvert, clap et tom/conga.
+- Séquenceur 16 pas, longueur de boucle réglable de 1 à 16.
+- Trois paramètres indépendants par instrument avec soft takeover.
+- Affichage sur matrice 8×8 MAX7219 et sortie PWM Mozzi sur D9.
+- D7 bascule le pas sélectionné ; D8 court déclenche FIRE ; D8 maintenu au
+  moins 650 ms mute/unmute l'instrument pour la lecture séquencée.
+- D11 bascule la variation du pas sélectionné ; D3 réinitialise au pas 1.
+
+Les six potentiomètres sont raccordés entre 5 V et GND, curseur vers A0–A5.
+Les boutons sont normalement ouverts entre leur broche et GND ; le firmware
+active `INPUT_PULLUP`. FIRE continue de déclencher un instrument muté.
 
 ## Organisation
 
-- `firmware/` : code embarqué à développer.
-- `docs/` : schémas et documentation complémentaire à ajouter.
-- `README.md` : présentation et prise en main.
-- `HARDWARE.md` : référence matérielle et brochage complet.
-- `TODO.md` : suivi des tâches et validations.
-- `AGENTS.md` : consignes de travail sur le dépôt.
+- `firmware/` : sketch embarqué V13 ;
+- `docs/` : architecture et documents complémentaires ;
+- `HARDWARE.md` : brochage, câblage et réserves matérielles ;
+- `TODO.md` : tâches et validations ;
+- `Nano808_V13_Hardware.md` : guide détaillé du prototype ;
+- `Nano808_V13_CHANGELOG.md` : historique V13.
 
-## Compilation et installation
+## Compilation
 
-À définir avant la première compilation :
+Le dossier de sketch doit porter le même nom que le fichier `.ino` selon la
+version d'Arduino CLI. Le fichier V13 est actuellement directement dans
+`firmware/`, donc il faut l'ouvrir dans l'IDE Arduino ou le placer dans un
+dossier de sketch portant son nom avant d'exécuter :
 
-- modèle exact de l'Arduino Nano et configuration de carte ;
-- environnement de développement et version du cœur Arduino ;
-- version de Mozzi et configuration du mode Hi-Fi ;
-- dépendances éventuelles et emplacement du sketch ;
-- procédure de compilation et de téléversement.
+```text
+arduino-cli compile --fqbn arduino:avr:nano <dossier-du-sketch>
+```
 
-Consulter [HARDWARE.md](HARDWARE.md) pour les choix matériels et [TODO.md](TODO.md) pour l'avancement.
+La compilation V13 a été effectuée de cette manière dans un dossier temporaire.
+Le téléversement reste manuel et nécessite une autorisation explicite.
+
+Voir [HARDWARE.md](HARDWARE.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+et [TODO.md](TODO.md).

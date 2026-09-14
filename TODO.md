@@ -1,44 +1,35 @@
 # Avancement Nano808
 
-Cocher une tâche uniquement lorsqu'elle est réalisée. Pour les validations, consigner le résultat et les conditions du test ; distinguer compilation et essai sur matériel.
+Ne cocher une tâche que lorsqu'elle est réalisée. Une compilation ne constitue
+pas une validation audio ou matérielle.
 
-## Documentation initiale
+## Réalisé dans le dépôt
 
-- [x] Créer README.md, HARDWARE.md, TODO.md et AGENTS.md.
-- [x] Consigner les objectifs connus et réserver D9/D10 à l'audio dans la documentation.
+- [x] Documenter le firmware V13 et son organisation.
+- [x] Documenter le brochage V13 connu et réserver D9 à l'audio.
+- [x] Implémenter séquenceur 16 pas, longueur 1–16, FIRE, MUTE, REC/variation et RESET.
+- [x] Compiler avec `arduino:avr:nano` : Flash 11 154 / 30 720 octets (36 %), SRAM globale 983 / 2 048 octets (47 %).
 
-## Matériel et brochage
+## À confirmer sur matériel
 
-- [ ] Confirmer le modèle exact de l'Arduino Nano.
-- [ ] Définir l'alimentation et l'intégration Eurorack.
-- [ ] Affecter les broches START/STOP et FUNCTION/SHIFT.
-- [ ] Définir les commandes et indicateurs du séquenceur.
-- [ ] Décider des éventuelles entrées/sorties complémentaires.
-- [ ] Compléter le brochage de toutes les connexions dans HARDWARE.md.
-- [ ] Ajouter les schémas et les valeurs des composants.
+- [ ] Confirmer le modèle exact du Nano et la version Mozzi de production.
+- [ ] Tester le MAX7219, son découplage et les retours de masse.
+- [ ] Mesurer le filtre audio D9, le niveau Eurorack et le bruit avec matrice active.
+- [ ] Confirmer alimentation 9 V, régulation 5 V, protections et connecteur Eurorack.
+- [ ] Vérifier orientation de matrice et zones des potentiomètres.
+- [ ] Tester anti-rebond, FIRE court/long, MUTE, REC, RESET et longueur.
+- [ ] Vérifier stabilité audio pendant séquenceur, affichage et commandes.
+- [ ] Réaliser un essai prolongé et consigner durée et résultats.
 
-## Audio et environnement de développement
+## Évolutions
 
-- [ ] Choisir et documenter les versions de l'environnement Arduino et de Mozzi.
-- [ ] Configurer et compiler un premier firmware audio Mozzi Hi-Fi sur D9/D10.
-- [ ] Réaliser et vérifier le circuit de sortie audio.
-- [ ] Valider la stabilité audio seule sur le matériel.
+- [ ] Définir et protéger l'entrée CLOCK externe sur D2.
+- [ ] Ajouter une commande de swing après validation de l'interface V13.
+- [ ] Finaliser schémas, valeurs de composants et instructions de montage.
+- [ ] Documenter le téléversement manuel après choix du modèle de carte.
 
-## Séquenceur et commandes
+## Vérifications effectuées
 
-- [ ] Définir le tempo, la programmation des pas et le comportement du séquenceur.
-- [ ] Implémenter le séquenceur 16 pas.
-- [ ] Intégrer START/STOP et vérifier le démarrage et l'arrêt.
-- [ ] Définir puis implémenter les fonctions FUNCTION/SHIFT.
-- [ ] Intégrer l'anti-rebond et les éventuels indicateurs.
-
-## Validation et prise en main
-
-- [ ] Vérifier la stabilité audio pendant la lecture du séquenceur.
-- [ ] Vérifier la stabilité audio pendant les interactions avec les commandes.
-- [ ] Réaliser un essai prolongé et consigner sa durée et ses résultats.
-- [ ] Compléter les instructions de montage, de compilation et de téléversement.
-
-## Résultats des validations
-
-Aucun test de compilation ou essai matériel effectué à ce stade.
+Compilation Arduino CLI du 14/09/2026 réussie avec `arduino:avr:nano` et
+arduino:avr 1.8.8 : 11 154 octets de Flash et 983 octets de SRAM globale.
+Aucun téléversement et aucun essai audio sur matériel n'ont été effectués.
