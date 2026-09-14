@@ -25,6 +25,8 @@ les potentiomètres, les boutons et l'affichage.
 - D12 commande le transport. Maintenir SHIFT sur D13 transforme D12 en tap
   tempo ; l'intervalle entre deux appuis règle le tempo et désactive l'horloge
   externe.
+- L'affichage applique une rotation de 180 degrés. La colonne 1 est un témoin
+  fixe de MUTE et un flash bref du step sélectionné confirme une action D11.
 
 ## Limites connues
 

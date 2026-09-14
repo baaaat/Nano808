@@ -189,6 +189,7 @@ const uint32_t TAP_MAX_INTERVAL_US = 2000000UL;
 
 // ---------------- MAX7219 ----------------
 uint8_t matrixRows[8] = {0};
+uint32_t recFeedbackUntilUs = 0;
 
 void maxSend(uint8_t reg, uint8_t data) {
   digitalWrite(PIN_MAX_CS, LOW);
@@ -227,14 +228,13 @@ void setPixelRaw(uint8_t row, uint8_t col, bool on) {
 }
 
 // Logical display coordinates -> physical matrix coordinates.
-// V6: display rotated a further 180 degrees compared with V5.
-// Net orientation is now 90 degrees clockwise relative to the raw matrix.
+// The physical interface is mounted half-turned (180 degrees). Logical
+// coordinates remain normal so the step rows still read left to right.
 void setPixel(uint8_t row, uint8_t col, bool on) {
   if (row > 7 || col > 7) return;
 
-  // CW rotation: (row, col) -> (col, 7-row)
-  uint8_t physicalRow = col;
-  uint8_t physicalCol = 7 - row;
+  uint8_t physicalRow = 7 - row;
+  uint8_t physicalCol = 7 - col;
   setPixelRaw(physicalRow, physicalCol, on);
 }
 
@@ -264,6 +264,11 @@ void drawDisplay() {
     selectedMuteBlink = ((phase / halfBeat) & 1UL) == 0;
   }
   setPixel(instrumentRow, 0, selectedMuteBlink);
+  // Dedicated steady marker in the adjacent column makes MUTE unambiguous.
+  setPixel(instrumentRow, 1, instrumentMuted[selectedInstrument]);
+
+  // Transport marker: top-right on while the sequencer is running.
+  setPixel(0, 7, sequencerRunning);
 
   // Three character parameters, one column each,
   // with one empty column between them.
@@ -285,9 +290,9 @@ void drawDisplay() {
 
     uint8_t row = (s < 8) ? 6 : 7;
 
-    // After the display rotation, reverse only the sequencer columns
-    // so steps still read from LEFT to RIGHT.
-    uint8_t col = 7 - (s & 7);
+    // The 180-degree coordinate transform above preserves left-to-right
+    // reading order for steps 1..8 and 9..16.
+    uint8_t col = s & 7;
 
     bool on = active || cursor;
 
@@ -300,6 +305,10 @@ void drawDisplay() {
     bool bpmBlink = ((phase / halfBeat) & 1UL) == 0;
 
     if (edit) on = bpmBlink;
+    if (recFeedbackUntilUs != 0 &&
+        (int32_t)(recFeedbackUntilUs - micros()) > 0 && edit) {
+      on = true;
+    }
 
     setPixel(row, col, on);
   }
@@ -1045,6 +1054,7 @@ void updateControlsUI() {
     if (recRaw == LOW) {
       recPressStartedUs = nowUs;
       recLongPressHandled = false;
+      recFeedbackUntilUs = nowUs + 250000UL;
       variationPattern[selectedInstrument] ^= (1U << selectedStep);
     }
   }
@@ -1060,6 +1070,7 @@ void updateControlsUI() {
       stepSoundParam[selectedInstrument][selectedStep][2] = param[selectedInstrument][2];
       stepSoundStored[selectedInstrument] |= mask;
     }
+    recFeedbackUntilUs = nowUs + 450000UL;
     recLongPressHandled = true;
   }
 }

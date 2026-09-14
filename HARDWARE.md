@@ -77,6 +77,11 @@ paramètres actuels sur ce pas. Si un enregistrement existe déjà, un nouvel
 appui long l'efface. Le rappel des paramètres est automatique à la lecture du
 pas. La mémoire est volatile et est perdue à l'extinction.
 
+Pour les essais, vérifier au multimètre que chaque bouton est bien câblé entre
+la broche et GND, et non vers 5 V : D11 pour REC, D12 pour START/STOP et D13
+pour SHIFT. Une entrée non câblée ou maintenue à LOW sur D13 peut faire
+interpréter les appuis D12 comme des taps tempo au lieu de START/STOP.
+
 ## ⚠️ Avertissement — horloge externe sur D2
 
 D2 accepte une horloge logique protégée référencée à la masse Arduino. Chaque
@@ -96,17 +101,46 @@ VCC va au 5 V et GND à la masse commune. Prévoir au plus près du module au
 minimum 100 nF entre 5 V et GND ; le guide V13 recommande aussi 100 µF de
 réserve. Éviter de faire passer le retour MAX7219 par le chemin audio.
 
-L'affichage logique place l'instrument en colonne 0, les bargraphes des trois
-paramètres en colonnes 2, 4 et 6, puis les pas 1–8 et 9–16 sur les deux lignes
-du bas. L'orientation réelle dépend du module et doit être confirmée.
+L'interface est montée avec une rotation de 180 degrés. Le firmware compense
+cette rotation : l'affichage logique place l'instrument en colonne 0, les
+bargraphes des trois paramètres en colonnes 2, 4 et 6, puis les pas 1–8 et
+9–16 sur les deux lignes du bas, toujours lus de gauche à droite. La
+correspondance finale doit être vérifiée sur le module réel.
+
+La colonne 1 indique MUTE par un point fixe à côté de l'instrument sélectionné.
+Le point de sélection en colonne 0 continue de clignoter lorsqu'un instrument
+est muté. Le point en haut à droite indique que le transport fonctionne.
+Après une action sur D11, le step édité est forcé brièvement allumé comme
+confirmation visuelle.
 
 ## Audio et alimentation
 
 Le code produit le PWM Mozzi sur D9 à 16 384 Hz et applique un filtrage
-numérique léger. Le filtre analogique, le condensateur de liaison, le niveau
+numérique léger. Si un buzz reste présent lorsque le MAX7219 est débranché ou
+éteint, il ne provient pas de l'affichage : rechercher alors l'alimentation 9 V,
+la masse audio, le filtre de sortie et les boucles de masse. Le filtre analogique, le condensateur de liaison, le niveau
 de sortie, la protection et le connecteur Eurorack restent à mesurer et à
 valider. Ne pas connecter D10 à l'audio de cette version.
 
-Le schéma détaillé proposé pour le prototype est dans
-[Nano808_V13_Hardware.md](Nano808_V13_Hardware.md). Il ne remplace pas une
-validation électrique du montage final.
+### Filtre audio proposé pour le prototype
+
+```text
+D9 --- 270 ohms ---+--- 10 uF --- 1 kohm --- AUDIO OUT TIP
+                   |
+                 100 nF
+                   |
+                  GND
+```
+
+Après le condensateur de liaison, prévoir 100 kohms vers GND. Pour le
+condensateur électrolytique, le positif va côté Arduino et le négatif côté
+sortie. Ces valeurs sont une proposition de prototype et restent à valider au
+mesure, notamment pour le niveau Eurorack.
+
+## Alimentation prototype
+
+Pour l'UNO, l'alimentation 9 V peut entrer par le jack ; le 5 V de l'UNO
+alimente les potentiomètres et le MAX7219. Pour le Nano, utiliser VIN et GND.
+Le montage final devra ajouter protection contre l'inversion, découplage et
+retours de masse séparés entre LED et audio. La consommation du MAX7219 et la
+régulation doivent être vérifiées avant intégration Eurorack.

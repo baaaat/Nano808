@@ -25,8 +25,11 @@ pas une validation audio ou matérielle.
 - [ ] Mesurer le filtre audio D9, le niveau Eurorack et le bruit avec matrice active.
 - [ ] Confirmer alimentation 9 V, régulation 5 V, protections et connecteur Eurorack.
 - [ ] Vérifier orientation de matrice et mesurer les extrémités ADC réelles des potentiomètres.
-- [ ] Tester anti-rebond, START/STOP, FIRE court/long, MUTE, REC, RESET et longueur.
+- [ ] Vérifier sur le prototype la rotation 180°, les témoins MUTE/transport et le flash REC.
+- [ ] Tester au multimètre le câblage D11/D12/D13 puis l'anti-rebond, START/STOP,
+  FIRE court/long, MUTE, REC, RESET et longueur.
 - [ ] Vérifier stabilité audio pendant séquenceur, affichage et commandes.
+- [ ] Diagnostiquer le buzz avec matrice débranchée : alimentation, masse et filtre audio.
 - [ ] Réaliser un essai prolongé et consigner durée et résultats.
 
 ## Évolutions
@@ -44,6 +47,7 @@ pas une validation audio ou matérielle.
 - [ ] Ajouter une commande de swing après validation de l'interface V13.
 - [ ] Finaliser schémas, valeurs de composants et instructions de montage.
 - [x] Documenter le téléversement manuel après choix du modèle de carte.
+- [x] Fusionner la documentation matérielle dans `HARDWARE.md` et supprimer le doublon V13.
 
 ## Vérifications effectuées
 

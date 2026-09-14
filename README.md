@@ -32,7 +32,12 @@ commune ; l'adaptation électrique reste à concevoir et valider.
   bascule START/STOP.
 - D11 maintenu environ 650 ms enregistre les trois paramètres sur le pas ; si
   un enregistrement existe, il est effacé.
-- D13 maintenu + D12 : tap tempo ; D12 seul reste START/STOP.
+- D13 maintenu + D12 : tap tempo ; D12 seul reste START/STOP. D13 doit rester
+  à HIGH lorsqu'aucun bouton SHIFT n'est appuyé.
+
+La matrice est montée avec un demi-tour (180°), compensé par le firmware ; les
+steps restent lisibles de gauche à droite. La colonne voisine de l'instrument
+indique MUTE, et le coin supérieur droit indique que le transport tourne.
 
 Les six potentiomètres sont raccordés entre 5 V et GND, curseur vers A0–A5.
 Les cinq boutons sont normalement ouverts entre leur broche et GND ; le firmware
@@ -44,7 +49,6 @@ active `INPUT_PULLUP`. FIRE continue de déclencher un instrument muté.
 - `docs/` : architecture et documents complémentaires ;
 - `HARDWARE.md` : brochage, câblage et réserves matérielles ;
 - `TODO.md` : tâches et validations ;
-- `Nano808_V13_Hardware.md` : guide détaillé du prototype ;
 - `Nano808_V13_CHANGELOG.md` : historique V13.
 
 ## Compilation
@@ -62,4 +66,5 @@ La compilation V13 a été effectuée de cette manière dans un dossier temporai
 Le téléversement reste manuel et nécessite une autorisation explicite.
 
 Voir [HARDWARE.md](HARDWARE.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-et [TODO.md](TODO.md).
+et [TODO.md](TODO.md). `HARDWARE.md` est la référence unique du brochage et du
+câblage.
