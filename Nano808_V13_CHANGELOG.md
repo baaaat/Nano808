@@ -70,6 +70,34 @@ V13 laisse `swingPercent = 0` et ne lui affecte pas encore de contrôle physique
 
 Tous les boutons sont normalement ouverts et vont simplement de leur broche Arduino vers GND grâce à `INPUT_PULLUP`.
 
+## Stabilisation des potentiomètres
+
+- A4 et A5 utilisent maintenant la plage ADC 24–999, divisée en 16 zones ;
+- filtrage progressif plus lent, hystérésis et confirmations réduisent les
+  changements dus au bruit autour des frontières ;
+- A1–A3 utilisent un filtrage et une zone morte légère pour éviter une
+  modulation excessive tout en conservant la course complète ;
+- les valeurs réelles des extrémités doivent encore être mesurées sur le
+  prototype et reportées dans `HARDWARE.md` si elles diffèrent.
+
+## START / STOP et synthèse
+
+- D12 reçoit le bouton START/STOP avec `INPUT_PULLUP` et anti-rebond ;
+- l'arrêt conserve la position du séquenceur et laisse les voix en cours finir
+  leur enveloppe ;
+- le kick et le tom reçoivent un renfort harmonique léger, et la caisse claire
+  un transitoire court pour améliorer l'attaque sans traitement bloquant ;
+- les calculs audio restent déterministes dans `updateAudio()`.
+
+## Horloge, mixage et hi-hat
+
+- D2 accepte désormais une horloge logique protégée : un front montant avance
+  un pas et la période mesurée synchronise le séquenceur ;
+- le mixage utilise une saturation progressive pour réduire la distorsion due
+  aux superpositions de voix ;
+- les hi-hats reçoivent une composante inharmonique supplémentaire, sans nouvel
+  état en RAM ni traitement bloquant.
+
 ## Vérifications faites
 
 - accolades équilibrées ;

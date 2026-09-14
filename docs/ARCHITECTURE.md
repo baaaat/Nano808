@@ -23,6 +23,7 @@ les potentiomètres, les boutons et l'affichage.
 ## Limites connues
 
 Patterns et paramètres sont en RAM et sont perdus à la mise hors tension. D2
-est seulement réservée : aucune horloge externe n'est traitée. La compilation
+traite désormais une horloge logique protégée ; son adaptation à un signal
+Eurorack n'est pas encore validée. La compilation
 ne permet pas de conclure à la stabilité audio, au niveau de sortie ou à la
 compatibilité électrique Eurorack.

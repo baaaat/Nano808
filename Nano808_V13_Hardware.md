@@ -42,7 +42,7 @@ La philosophie reprend Mutant/Freaq : contrôle direct, peu de menus, séquenceu
 | D9 | AUDIO PWM Mozzi | filtre audio |
 | D10 | réservé / laisser libre | ne rien câbler |
 | D11 | REC / VARIATION | bouton poussoir vers GND |
-| D12 | libre | réserve |
+| D12 | START / STOP | bouton poussoir vers GND |
 | D13 | libre | LED intégrée possible |
 | 5V | rail logique | pots + MAX7219 |
 | GND | masse | masse commune |
@@ -256,18 +256,23 @@ Polarité du 10 µF :
 
 ---
 
-## 9. CLOCK futur
+## 9. ⚠️ Avertissement — CLOCK externe sur D2
 
-D2 reste volontairement libre.
+D2 est maintenant l'entrée CLOCK externe. Un front montant fait avancer un pas
+après validation de la période mesurée.
 
 La V13 possède déjà une fonction interne permettant de mettre à jour :
 - la durée d'un step ;
 - la durée d'un beat ;
 - le clignotement du step sélectionné.
 
-Quand la carte d'horloge externe sera prête, D2 recevra le CLOCK protégé et le BPM affichage/séquenceur sera dérivé du signal reçu au lieu de 90 BPM.
+La période des fronts valides est mesurée et le tempo d'affichage/séquenceur
+est dérivé du signal reçu au lieu de 90 BPM.
 
-Aucune entrée CLOCK n'est nécessaire pour tester cette V13.
+L'entrée doit recevoir un signal logique 0–5 V protégé avec masse commune. Une
+horloge Eurorack ±5 V ou ±10 V ne doit jamais être raccordée directement à D2,
+au risque d'endommager l'Arduino. L'adaptation et la protection restent à
+réaliser et valider.
 
 ---
 
@@ -294,4 +299,3 @@ Il n'y a volontairement pas encore de commande physique de swing pour ne pas sur
 | D8 long | MUTE/UNMUTE instrument |
 | D11 | variation REC du step |
 | D3 | RESET step 1 |
-

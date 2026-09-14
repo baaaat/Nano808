@@ -18,6 +18,7 @@
       D7  step ON/OFF
       D8  FIRE (short press); MUTE selected instrument (long press)
       D11 REC/VARIATION for selected step
+      D12 START/STOP transport
       D3  RESET to step 1
     Matrix:
       DIN D4
@@ -71,7 +72,7 @@
 struct Voice;
 
 // ---------------- Pins ----------------
-const uint8_t PIN_CLOCK_FUTURE = 2; // reserved for future external CLOCK IN
+const uint8_t PIN_CLOCK_FUTURE = 2; // external CLOCK IN, protected 5 V logic
 const uint8_t PIN_RESET = 3;
 
 const uint8_t PIN_MAX_DIN = 4;
@@ -82,6 +83,7 @@ const uint8_t PIN_STEP_BUTTON = 7;
 const uint8_t PIN_FIRE_BUTTON = 8;
 // D9 = Mozzi PWM audio out. Leave D10 unused/spare for Mozzi/Timer1 headroom.
 const uint8_t PIN_REC_BUTTON = 11;
+const uint8_t PIN_START_STOP_BUTTON = 12;
 
 const uint8_t PIN_POT_INSTR = A0;
 const uint8_t PIN_POT_P1    = A1;
@@ -112,12 +114,17 @@ uint32_t baseStepPeriodUs = 166667UL;
 uint32_t beatPeriodUs = 666667UL;
 uint32_t nextStepDueUs = 0;
 uint32_t clockPhaseOriginUs = 0;
+volatile uint32_t externalClockLastEdgeUs = 0;
+volatile uint32_t externalClockPeriodUs = 0;
+volatile bool externalClockPulsePending = false;
+bool externalClockActive = false;
 
 // 0..30 is a sensible future range. 0 = straight timing.
 // Infrastructure only in V13; no front-panel swing control yet.
 uint8_t swingPercent = 0;
 
 uint8_t currentStep = 0;
+bool sequencerRunning = true;
 uint8_t selectedInstrument = 0;
 uint8_t selectedStep = 0;
 uint8_t patternLength = 16;
@@ -156,9 +163,11 @@ uint8_t param[NUM_INSTRUMENTS][3] = {
 bool oldStepButton = HIGH;
 bool oldFireButton = HIGH;
 bool oldRecButton = HIGH;
+bool oldStartStopButton = HIGH;
 uint32_t lastStepButtonEdgeUs = 0;
 uint32_t lastFireButtonEdgeUs = 0;
 uint32_t lastRecButtonEdgeUs = 0;
+uint32_t lastStartStopButtonEdgeUs = 0;
 uint32_t firePressStartedUs = 0;
 bool fireLongPressHandled = false;
 const uint32_t BUTTON_DEBOUNCE_US = 20000UL;
@@ -289,6 +298,22 @@ void resetISR() {
   resetPending = true;
 }
 
+// D2 external clock input. The ISR only timestamps the edge; all timing and
+// voice work remains in updateControl(). One rising edge advances one step.
+void externalClockISR() {
+  uint32_t now = micros();
+  uint32_t previous = externalClockLastEdgeUs;
+  externalClockLastEdgeUs = now;
+
+  if (previous != 0) {
+    uint32_t period = now - previous;
+    if (period >= 30000UL && period <= 500000UL) {
+      externalClockPeriodUs = period;
+      externalClockPulsePending = true;
+    }
+  }
+}
+
 // ---------------- Lightweight sound engine ----------------
 //
 // Uses manual 32-bit phases + sine table.
@@ -404,9 +429,14 @@ int16_t synthKick() {
   uint16_t hz = baseHz + sweep;
 
   x.phase1 += hzToInc(hz);
+  x.phase2 += hzToInc(hz * 2U);
 
   int16_t s = sineFromPhase(x.phase1);
-  int32_t out = ((int32_t)s * x.env) >> 8;
+  int16_t harmonic = sineFromPhase(x.phase2);
+  // A small second harmonic gives the kick more body on small speakers while
+  // retaining the fundamental for a clean low-end pulse.
+  int16_t body = s + (harmonic >> 2);
+  int32_t out = ((int32_t)body * x.env) >> 8;
 
   // short click/punch
   if (x.age < 90) {
@@ -450,6 +480,8 @@ int16_t synthSnare() {
   int16_t mix = ((int32_t)body * (255 - effectiveNoise) +
                  (int32_t)n * effectiveNoise) >> 8;
   int32_t out = ((int32_t)mix * x.env) >> 7;
+  // Short noise transient improves the attack without extending the decay.
+  if (x.age < 42) out += ((int32_t)n * (42 - x.age)) >> 2;
   if (variation) out += out >> 2;
 
   uint16_t dec = 50 + ((255 - decay) >> 1);
@@ -485,6 +517,11 @@ int16_t metallicHat(Voice &x, uint8_t inst, bool openHat) {
   int16_t m = (((x.phase1 >> 31) ? 90 : -90) +
                ((x.phase2 >> 31) ? 70 : -70) +
                ((x.phase3 >> 31) ? 55 : -55));
+
+  // A small ring-like component breaks up the static square blend and gives
+  // the hats a more recognisable metallic, inharmonic character.
+  int16_t ring = (((x.phase1 >> 31) ^ (x.phase2 >> 30)) ? 42 : -42);
+  m += ring;
 
   int16_t n = noise8();
   int16_t sig = ((int32_t)m * metal + (int32_t)n * (255 - metal)) >> 8;
@@ -557,8 +594,10 @@ int16_t synthTom() {
   if (x.age < 500) sweepNow = drop - ((uint32_t)drop * x.age / 500);
 
   x.phase1 += hzToInc(baseHz + sweepNow);
+  x.phase2 += hzToInc((baseHz + sweepNow) * 2U);
   int16_t s = sineFromPhase(x.phase1);
-  int32_t out = ((int32_t)s * x.env) >> 8;
+  int16_t harmonic = sineFromPhase(x.phase2);
+  int32_t out = ((int32_t)(s + (harmonic >> 3)) * x.env) >> 8;
   if (variation) out += out >> 2;
 
   uint16_t dec = 32 + ((255 - decay) >> 2);
@@ -567,6 +606,19 @@ int16_t synthTom() {
 
   x.age++;
   return constrain(out, -10000, 10000);
+}
+
+int32_t softClip(int32_t sample) {
+  // Compress only the upper part of the mix. This keeps normal hits linear
+  // and avoids the harsh edge of a hard digital clip when voices overlap.
+  const int32_t threshold = 4800;
+  const int32_t limit = 7000;
+  if (sample > threshold) {
+    sample = threshold + ((sample - threshold) >> 2);
+  } else if (sample < -threshold) {
+    sample = -threshold + ((sample + threshold) >> 2);
+  }
+  return constrain(sample, -limit, limit);
 }
 
 // ---------------- UI ----------------
@@ -578,25 +630,69 @@ uint8_t adcToByte(int v) {
 
 // Instrument selector with hysteresis.
 // Six equal zones across A0.
+uint16_t instrumentFilteredRaw = 0;
+bool instrumentFilterInitialised = false;
+uint8_t instrumentPendingCandidate = 255;
+uint8_t instrumentPendingCount = 0;
+
 uint8_t readInstrumentSelector(int raw) {
   const uint8_t HYST = 12; // ADC counts
+  const uint8_t CONFIRM_READS = 2;
 
   if (raw < 0) raw = 0;
   if (raw > 1023) raw = 1023;
 
+  if (!instrumentFilterInitialised) {
+    instrumentFilteredRaw = raw;
+    instrumentFilterInitialised = true;
+  } else {
+    int32_t filterDelta = (int32_t)raw - instrumentFilteredRaw;
+    int32_t filterStep = filterDelta >> 3;
+    if (filterDelta != 0 && filterStep == 0) {
+      filterStep = filterDelta > 0 ? 1 : -1;
+    }
+    instrumentFilteredRaw += filterStep;
+  }
+
+  raw = instrumentFilteredRaw;
+
   uint8_t candidate = ((uint32_t)raw * NUM_INSTRUMENTS) >> 10;
   if (candidate >= NUM_INSTRUMENTS) candidate = NUM_INSTRUMENTS - 1;
 
-  if (candidate == selectedInstrument) return selectedInstrument;
+  if (candidate == selectedInstrument) {
+    instrumentPendingCandidate = 255;
+    instrumentPendingCount = 0;
+    return selectedInstrument;
+  }
 
+  bool crossedFarEnough = false;
   if (candidate > selectedInstrument) {
     uint16_t boundary =
         ((uint32_t)(selectedInstrument + 1) * 1024UL) / NUM_INSTRUMENTS;
-    if (raw >= (int)boundary + HYST) return candidate;
+    crossedFarEnough = raw >= (int)boundary + HYST;
   } else {
     uint16_t boundary =
         ((uint32_t)selectedInstrument * 1024UL) / NUM_INSTRUMENTS;
-    if (raw <= (int)boundary - HYST) return candidate;
+    crossedFarEnough = raw <= (int)boundary - HYST;
+  }
+
+  if (!crossedFarEnough) {
+    instrumentPendingCandidate = 255;
+    instrumentPendingCount = 0;
+    return selectedInstrument;
+  }
+
+  if (candidate != instrumentPendingCandidate) {
+    instrumentPendingCandidate = candidate;
+    instrumentPendingCount = 1;
+    return selectedInstrument;
+  }
+
+  if (instrumentPendingCount < 255) instrumentPendingCount++;
+  if (instrumentPendingCount >= CONFIRM_READS) {
+    instrumentPendingCandidate = 255;
+    instrumentPendingCount = 0;
+    return candidate;
   }
 
   return selectedInstrument;
@@ -608,6 +704,12 @@ uint8_t readInstrumentSelector(int raw) {
 // or crosses that instrument's stored value.
 bool pickup[3] = {false, false, false};
 uint8_t previousPhysical[3] = {0, 0, 0};
+uint8_t parameterFiltered[3] = {0, 0, 0};
+
+// The pots are read through the Nano ADC.  A small digital deadband prevents
+// one ADC count of noise from becoming audible parameter modulation while the
+// filtered value still covers the complete 0..255 range.
+const uint8_t PARAMETER_DEADBAND = 2;
 
 void armSoftTakeover() {
   pickup[0] = false;
@@ -617,42 +719,58 @@ void armSoftTakeover() {
   previousPhysical[0] = adcToByte(mozziAnalogRead(PIN_POT_P1));
   previousPhysical[1] = adcToByte(mozziAnalogRead(PIN_POT_P2));
   previousPhysical[2] = adcToByte(mozziAnalogRead(PIN_POT_P3));
+  parameterFiltered[0] = previousPhysical[0];
+  parameterFiltered[1] = previousPhysical[1];
+  parameterFiltered[2] = previousPhysical[2];
 }
 
 void handleSoftTakeover(uint8_t index, int raw) {
   const uint8_t PICKUP_TOLERANCE = 3;
 
   uint8_t physical = adcToByte(raw);
+  int16_t filterDelta = (int16_t)physical - parameterFiltered[index];
+  int16_t filterStep = filterDelta >> 2;
+  if (filterDelta != 0 && filterStep == 0) {
+    filterStep = filterDelta > 0 ? 1 : -1;
+  }
+  int16_t filtered = (int16_t)parameterFiltered[index] + filterStep;
+  if (filtered < 0) filtered = 0;
+  if (filtered > 255) filtered = 255;
+  parameterFiltered[index] = (uint8_t)filtered;
+  uint8_t stablePhysical = parameterFiltered[index];
   uint8_t stored = param[selectedInstrument][index];
 
   if (!pickup[index]) {
-    int16_t d = (int16_t)physical - (int16_t)stored;
+    int16_t d = (int16_t)stablePhysical - (int16_t)stored;
 
     // Either arrive very close to the stored value...
     bool closeEnough = (d >= -(int16_t)PICKUP_TOLERANCE &&
                         d <=  (int16_t)PICKUP_TOLERANCE);
 
     // ...or cross it between two control reads.
-    uint8_t lo = previousPhysical[index] < physical
-                   ? previousPhysical[index] : physical;
-    uint8_t hi = previousPhysical[index] > physical
-                   ? previousPhysical[index] : physical;
+    uint8_t lo = previousPhysical[index] < stablePhysical
+                   ? previousPhysical[index] : stablePhysical;
+    uint8_t hi = previousPhysical[index] > stablePhysical
+                   ? previousPhysical[index] : stablePhysical;
     bool crossed = (stored >= lo && stored <= hi);
 
     if (closeEnough || crossed) pickup[index] = true;
   }
 
   if (pickup[index]) {
-    param[selectedInstrument][index] = physical;
+    int16_t delta = (int16_t)stablePhysical - param[selectedInstrument][index];
+    if (delta >= PARAMETER_DEADBAND || delta <= -PARAMETER_DEADBAND) {
+      param[selectedInstrument][index] = stablePhysical;
+    }
   }
 
-  previousPhysical[index] = physical;
+  previousPhysical[index] = stablePhysical;
 }
 
-// A4 step selector V12:
-// - 16 zones of EQUAL width
-// - calibrated usable ADC range so step 1 remains reachable
-// - smoothing + hysteresis + confirmation to avoid flicker
+// A4 step selector:
+// - 16 equal-width zones between calibrated endpoints
+// - slower smoothing, hysteresis and consecutive-read confirmation
+// - values outside the usable range are clamped to steps 1 and 16
 //
 // Calibration values can later be adjusted if needed after measuring A4.
 // Values below STEP_ADC_MIN stay on step 1.
@@ -663,10 +781,13 @@ uint8_t stepPendingCandidate = 255;
 uint8_t stepPendingCount = 0;
 
 uint8_t readStepSelector(int raw) {
-  const int STEP_ADC_MIN = 80;
-  const int STEP_ADC_MAX = 1000;
-  const int STEP_HYST = 10;
-  const uint8_t CONFIRM_READS = 4;
+  // These are deliberately conservative values for a 10 k linear pot. They
+  // leave a small margin for end-stop tolerance; tune after measuring the
+  // actual panel pot and record the measured values in HARDWARE.md.
+  const int STEP_ADC_MIN = 24;
+  const int STEP_ADC_MAX = 999;
+  const int STEP_HYST = 8;
+  const uint8_t CONFIRM_READS = 3;
 
   if (raw < 0) raw = 0;
   if (raw > 1023) raw = 1023;
@@ -675,8 +796,13 @@ uint8_t readStepSelector(int raw) {
     stepFilteredRaw = raw;
     stepFilterInitialised = true;
   } else {
-    // light smoothing, responsive but stable
-    stepFilteredRaw += ((int32_t)raw - (int32_t)stepFilteredRaw) >> 2;
+    // Slower IIR smoothing removes ADC noise without adding a blocking wait.
+    int32_t filterDelta = (int32_t)raw - (int32_t)stepFilteredRaw;
+    int32_t filterStep = filterDelta >> 3;
+    if (filterDelta != 0 && filterStep == 0) {
+      filterStep = filterDelta > 0 ? 1 : -1;
+    }
+    stepFilteredRaw += filterStep;
   }
 
   int filtered = stepFilteredRaw;
@@ -745,14 +871,14 @@ uint8_t readStepSelector(int raw) {
   return selectedStep;
 }
 
-// A5 pattern-length selector: 1..16 with equal zones and hysteresis.
+// A5 pattern-length selector: 1..16 with equal zones, smoothing and hysteresis.
 uint16_t lengthFilteredRaw = 0;
 bool lengthFilterInitialised = false;
 
 uint8_t readPatternLength(int raw) {
-  const int ADC_MIN = 40;
-  const int ADC_MAX = 1000;
-  const int HYST = 10;
+  const int ADC_MIN = 24;
+  const int ADC_MAX = 999;
+  const int HYST = 8;
 
   if (raw < 0) raw = 0;
   if (raw > 1023) raw = 1023;
@@ -761,7 +887,12 @@ uint8_t readPatternLength(int raw) {
     lengthFilteredRaw = raw;
     lengthFilterInitialised = true;
   } else {
-    lengthFilteredRaw += ((int32_t)raw - (int32_t)lengthFilteredRaw) >> 2;
+    int32_t filterDelta = (int32_t)raw - (int32_t)lengthFilteredRaw;
+    int32_t filterStep = filterDelta >> 3;
+    if (filterDelta != 0 && filterStep == 0) {
+      filterStep = filterDelta > 0 ? 1 : -1;
+    }
+    lengthFilteredRaw += filterStep;
   }
 
   int filtered = lengthFilteredRaw;
@@ -824,6 +955,23 @@ void updateControlsUI() {
     }
   }
 
+  // START/STOP transport button (D12).
+  // A stop freezes the sequencer position; voices already sounding are allowed
+  // to decay naturally. Starting resumes from the current position.
+  bool startStopRaw = digitalRead(PIN_START_STOP_BUTTON);
+  if (startStopRaw != oldStartStopButton &&
+      (uint32_t)(nowUs - lastStartStopButtonEdgeUs) >= BUTTON_DEBOUNCE_US) {
+    oldStartStopButton = startStopRaw;
+    lastStartStopButtonEdgeUs = nowUs;
+    if (startStopRaw == LOW) {
+      sequencerRunning = !sequencerRunning;
+      if (sequencerRunning) {
+        nextStepDueUs = nowUs + stepDurationUs(currentStep);
+        clockPhaseOriginUs = nowUs;
+      }
+    }
+  }
+
   // FIRE button (D8): immediate audition on press.
   // Long press toggles sequencer mute for the selected instrument.
   bool fireRaw = digitalRead(PIN_FIRE_BUTTON);
@@ -867,10 +1015,32 @@ void updateControl() {
     resetSequencer(true);
   }
 
+  bool clockPulse = false;
+  uint32_t clockPeriod = 0;
+  noInterrupts();
+  if (externalClockPulsePending) {
+    externalClockPulsePending = false;
+    clockPeriod = externalClockPeriodUs;
+    clockPulse = true;
+  }
+  interrupts();
+
+  if (clockPulse) {
+    setTimingFromExternalStepPeriod(clockPeriod);
+    if (!externalClockActive) {
+      externalClockActive = true;
+      resetSequencer(true);
+    } else if (sequencerRunning) {
+      advanceSequencer();
+    }
+  }
+
   uint32_t now = micros();
-  while ((int32_t)(now - nextStepDueUs) >= 0) {
-    advanceSequencer();
-    nextStepDueUs += stepDurationUs(currentStep);
+  if (sequencerRunning && !externalClockActive) {
+    while ((int32_t)(now - nextStepDueUs) >= 0) {
+      advanceSequencer();
+      nextStepDueUs += stepDurationUs(currentStep);
+    }
   }
 
   updateControlsUI();
@@ -894,7 +1064,7 @@ AudioOutput updateAudio() {
 
   // More headroom than V3.
   mix >>= 2;
-  mix = constrain(mix, -7000, 7000);
+  mix = softClip(mix);
 
   // Gentle digital low-pass.
   // This reduces high-frequency digital/hash content without heavily
@@ -911,11 +1081,13 @@ void setup() {
   pinMode(PIN_STEP_BUTTON, INPUT_PULLUP);
   pinMode(PIN_FIRE_BUTTON, INPUT_PULLUP);
   pinMode(PIN_REC_BUTTON, INPUT_PULLUP);
-  pinMode(PIN_CLOCK_FUTURE, INPUT_PULLUP); // reserved; no ISR in V13
+  pinMode(PIN_START_STOP_BUTTON, INPUT_PULLUP);
+  pinMode(PIN_CLOCK_FUTURE, INPUT_PULLUP);
 
   maxInit();
 
   attachInterrupt(digitalPinToInterrupt(PIN_RESET), resetISR, FALLING);
+  attachInterrupt(digitalPinToInterrupt(PIN_CLOCK_FUTURE), externalClockISR, RISING);
 
   startMozzi(CONTROL_RATE);
   setTimingFromBPM(INTERNAL_BPM);

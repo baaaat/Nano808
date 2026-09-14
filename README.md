@@ -10,9 +10,15 @@ Le firmware compile avec `arduino:avr:nano` et l'environnement installé
 (arduino:avr 1.8.8). Cette compilation ne valide pas le son ni le câblage sur
 matériel. Aucun téléversement automatique n'est effectué.
 
-Le prototype utilise une horloge interne à 90 BPM. L'horloge externe sur D2 et
-le swing sont préparés dans le code mais ne sont pas fonctionnels dans cette
-V13.
+Le prototype utilise une horloge interne à 90 BPM. Une horloge logique externe
+peut maintenant être appliquée sur D2 : chaque front montant avance d'un pas
+et la période mesurée remplace l'horloge interne. La protection électrique de
+cette entrée reste à valider. Le swing est préparé dans le code mais aucune
+commande physique ne lui est encore affectée.
+
+**Avertissement : ne jamais brancher directement une horloge Eurorack ±5 V ou
+±10 V sur D2.** Utiliser uniquement un signal logique 0–5 V protégé avec masse
+commune ; l'adaptation électrique reste à concevoir et valider.
 
 ## Fonctionnalités et commandes
 
@@ -22,10 +28,11 @@ V13.
 - Affichage sur matrice 8×8 MAX7219 et sortie PWM Mozzi sur D9.
 - D7 bascule le pas sélectionné ; D8 court déclenche FIRE ; D8 maintenu au
   moins 650 ms mute/unmute l'instrument pour la lecture séquencée.
-- D11 bascule la variation du pas sélectionné ; D3 réinitialise au pas 1.
+- D11 bascule la variation du pas sélectionné ; D3 réinitialise au pas 1 ; D12
+  bascule START/STOP.
 
 Les six potentiomètres sont raccordés entre 5 V et GND, curseur vers A0–A5.
-Les boutons sont normalement ouverts entre leur broche et GND ; le firmware
+Les cinq boutons sont normalement ouverts entre leur broche et GND ; le firmware
 active `INPUT_PULLUP`. FIRE continue de déclencher un instrument muté.
 
 ## Organisation
@@ -46,7 +53,7 @@ dossier de sketch portant son nom avant d'exécuter :
 
 ```text
 arduino-cli compile --fqbn arduino:avr:nano <dossier-du-sketch>
-```
+``
 
 La compilation V13 a été effectuée de cette manière dans un dossier temporaire.
 Le téléversement reste manuel et nécessite une autorisation explicite.

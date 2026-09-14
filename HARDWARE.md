@@ -12,18 +12,18 @@ D9 est réservé à l'audio ; D10 reste libre dans cette V13.
 | Alimentation prototype | 9 V vers VIN, GND commun ; consommation à vérifier |
 | Affichage | MAX7219 + matrice 8×8, logique 5 V |
 | Audio | PWM Mozzi sur D9 ; filtre et niveau Eurorack à valider |
-| Commandes | six potentiomètres 10 kΩ linéaires et quatre boutons |
+| Commandes | six potentiomètres 10 kΩ linéaires et cinq boutons |
 
 ## Brochage V13
 
 | Fonction | Broche | Direction | Câblage | Remarques |
 | --- | --- | --- | --- | --- |
-| Instrument | A0 | entrée analogique | curseur pot 10 kΩ ; extrémités 5 V/GND | six zones |
+| Instrument | A0 | entrée analogique | curseur pot 10 kΩ ; extrémités 5 V/GND | six zones avec hystérésis |
 | Paramètre 1 | A1 | entrée analogique | curseur pot 10 kΩ | soft takeover |
 | Paramètre 2 | A2 | entrée analogique | curseur pot 10 kΩ | soft takeover |
 | Paramètre 3 | A3 | entrée analogique | curseur pot 10 kΩ | soft takeover |
-| Pas à éditer | A4 | entrée analogique | curseur pot 10 kΩ | 16 zones filtrées |
-| Longueur | A5 | entrée analogique | curseur pot 10 kΩ | 1–16, non destructive |
+| Pas à éditer | A4 | entrée analogique | curseur pot 10 kΩ | 16 zones égales filtrées |
+| Longueur | A5 | entrée analogique | curseur pot 10 kΩ | 16 zones, 1–16, non destructive |
 | RESET | D3 | entrée numérique | bouton vers GND | `INPUT_PULLUP`, FALLING |
 | MAX7219 DIN | D4 | sortie | DIN | — |
 | MAX7219 CLK | D5 | sortie | CLK | — |
@@ -31,11 +31,52 @@ D9 est réservé à l'audio ; D10 reste libre dans cette V13.
 | Step ON/OFF | D7 | entrée numérique | bouton vers GND | anti-rebond 20 ms |
 | FIRE / MUTE | D8 | entrée numérique | bouton vers GND | court / long |
 | Audio Mozzi | D9 | sortie PWM | filtre audio | broche réservée |
-| CLOCK futur | D2 | entrée configurée | ne rien câbler | non traité en V13 |
-| Libre | D10, D12, D13 | — | ne rien câbler | D13 : LED future possible |
+| START/STOP | D12 | entrée numérique | bouton vers GND | `INPUT_PULLUP`, anti-rebond 20 ms |
+| CLOCK externe | D2 | entrée numérique | signal d'horloge protégé, masse commune | front montant = 1 pas |
+| Libre | D10, D13 | — | ne rien câbler | D13 : LED future possible |
 
 Tous les boutons utilisent la résistance de rappel interne. Le montage réel
 doit être vérifié pour les parasites, le rebond et les niveaux.
+
+## Câblage et réglage des potentiomètres
+
+Chaque potentiomètre est câblé en parallèle, jamais en série : une extrémité
+au 5 V, l'autre au GND et le curseur sur l'entrée indiquée. Utiliser des
+potentiomètres linéaires de 10 kΩ et des fils courts pour A4 et A5.
+
+A4 et A5 utilisent une plage logicielle commune de 24 à 999 mesures ADC. Les
+valeurs en dessous/au-dessus sont rabattues sur les extrémités ; la plage
+intermédiaire est divisée en 16 zones égales. Le firmware applique un filtre
+progressif, une hystérésis de 8 mesures et une confirmation de trois lectures
+pour A4. Ces choix évitent les changements intempestifs sans attente bloquante.
+
+Si la première ou la dernière position n'est pas atteignable sur le montage,
+mesurer les valeurs ADC réelles et ajuster `STEP_ADC_MIN` / `STEP_ADC_MAX`
+dans le sketch ; reporter alors les valeurs mesurées ici. Ne pas modifier ces
+constantes uniquement pour compenser un câblage inversé : permuter les deux
+extrémités 5 V/GND du potentiomètre.
+
+Les paramètres A1–A3 ont aussi un filtrage et une zone morte de deux niveaux
+sur 255. Après changement d'instrument, le soft takeover empêche un saut : le
+potentiomètre doit rejoindre ou croiser la valeur mémorisée.
+
+Le bouton START/STOP sur D12 bascule le transport. À l'arrêt, la position du
+séquenceur est conservée et les voix déjà déclenchées finissent leur enveloppe.
+Au redémarrage, la lecture reprend à la position conservée. Le bouton est
+normalement ouvert : D12 — bouton — GND, sans résistance externe.
+
+## ⚠️ Avertissement — horloge externe sur D2
+
+D2 accepte une horloge logique protégée référencée à la masse Arduino. Chaque
+front montant valide fait avancer d'un pas ; après deux fronts valides, la
+période mesurée remplace l'horloge interne et synchronise aussi le clignotement.
+Les périodes acceptées sont de 30 à 500 ms (environ 30–500 BPM en pas).
+
+Ne jamais injecter directement une horloge Eurorack ±5 V ou ±10 V sur D2 : cela
+peut endommager l'entrée de l'Arduino. Le circuit d'adaptation (limitation de
+tension, protection contre l'inversion et mise en forme logique) reste à
+concevoir et à valider. En attendant, utiliser uniquement un signal 0–5 V
+protégé, avec GND commun, ou laisser D2 non câblée.
 
 ## MAX7219
 
