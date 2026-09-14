@@ -177,6 +177,8 @@ bool oldStepButton = HIGH;
 bool oldFireButton = HIGH;
 bool oldRecButton = HIGH;
 bool oldStartStopButton = HIGH;
+bool shiftPressed = false;
+uint32_t lastShiftEdgeUs = 0;
 bool oldShiftButton = HIGH;
 uint32_t lastStepButtonEdgeUs = 0;
 uint32_t lastFireButtonEdgeUs = 0;
@@ -1011,12 +1013,17 @@ void updateControlsUI() {
   // voices already sounding are allowed to decay naturally.
   bool startStopRaw = digitalRead(PIN_START_STOP_BUTTON);
   bool shiftRaw = digitalRead(PIN_SHIFT_BUTTON);
+  if (shiftRaw != (shiftPressed ? LOW : HIGH) &&
+      (uint32_t)(nowUs - lastShiftEdgeUs) >= BUTTON_DEBOUNCE_US) {
+    shiftPressed = (shiftRaw == LOW);
+    lastShiftEdgeUs = nowUs;
+  }
   if (startStopRaw != oldStartStopButton &&
       (uint32_t)(nowUs - lastStartStopButtonEdgeUs) >= BUTTON_DEBOUNCE_US) {
     oldStartStopButton = startStopRaw;
     lastStartStopButtonEdgeUs = nowUs;
     if (startStopRaw == LOW) {
-      if (shiftRaw == LOW) {
+      if (shiftPressed) {
         if (lastTapTempoUs != 0) {
           uint32_t interval = nowUs - lastTapTempoUs;
           if (interval >= TAP_MIN_INTERVAL_US && interval <= TAP_MAX_INTERVAL_US) {
@@ -1032,6 +1039,10 @@ void updateControlsUI() {
         lastTapTempoUs = nowUs;
       } else {
         stepEditMode = false;
+        // A manual transport command takes ownership from a previously
+        // detected external clock (including an accidental D2 edge).
+        externalClockActive = false;
+        externalClockLastEdgeUs = 0;
         sequencerRunning = !sequencerRunning;
         if (sequencerRunning) {
           nextStepDueUs = nowUs + stepDurationUs(currentStep);
@@ -1195,6 +1206,8 @@ void setup() {
   pinMode(PIN_START_STOP_BUTTON, INPUT_PULLUP);
   pinMode(PIN_SHIFT_BUTTON, INPUT_PULLUP);
   pinMode(PIN_CLOCK_FUTURE, INPUT_PULLUP);
+  oldStartStopButton = digitalRead(PIN_START_STOP_BUTTON);
+  shiftPressed = digitalRead(PIN_SHIFT_BUTTON) == LOW;
 
   maxInit();
 
