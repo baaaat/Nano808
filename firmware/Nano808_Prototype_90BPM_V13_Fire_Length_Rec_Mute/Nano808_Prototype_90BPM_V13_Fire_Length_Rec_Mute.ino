@@ -179,7 +179,6 @@ bool oldRecButton = HIGH;
 bool oldStartStopButton = HIGH;
 bool shiftPressed = false;
 bool startStopIdleState = HIGH;
-bool shiftIdleState = HIGH;
 uint32_t lastShiftEdgeUs = 0;
 bool oldShiftButton = HIGH;
 uint32_t lastStepButtonEdgeUs = 0;
@@ -1015,14 +1014,14 @@ void updateControlsUI() {
   // voices already sounding are allowed to decay naturally.
   bool startStopRaw = digitalRead(PIN_START_STOP_BUTTON);
   bool shiftRaw = digitalRead(PIN_SHIFT_BUTTON);
-  if (shiftRaw != (shiftPressed ? (bool)!shiftIdleState : shiftIdleState) &&
+  if (shiftRaw != (shiftPressed ? LOW : HIGH) &&
       (uint32_t)(nowUs - lastShiftEdgeUs) >= BUTTON_DEBOUNCE_US) {
-    shiftPressed = (shiftRaw != shiftIdleState);
+    shiftPressed = (shiftRaw == LOW);
     lastShiftEdgeUs = nowUs;
   }
   // Use the instantaneous changed-state as a fallback as well: this avoids
   // losing SHIFT when D13 is pressed shortly before D12.
-  bool shiftActive = shiftPressed || (shiftRaw != shiftIdleState);
+  bool shiftActive = shiftPressed || (shiftRaw == LOW);
   if (startStopRaw != oldStartStopButton &&
       (uint32_t)(nowUs - lastStartStopButtonEdgeUs) >= BUTTON_DEBOUNCE_US) {
     oldStartStopButton = startStopRaw;
@@ -1213,7 +1212,8 @@ void setup() {
   pinMode(PIN_CLOCK_FUTURE, INPUT_PULLUP);
   startStopIdleState = digitalRead(PIN_START_STOP_BUTTON);
   oldStartStopButton = startStopIdleState;
-  shiftIdleState = digitalRead(PIN_SHIFT_BUTTON);
+  // D13 is intentionally fixed to INPUT_PULLUP: HIGH is the unpressed state
+  // and LOW is SHIFT pressed. Do not auto-calibrate it from the LED load.
   shiftPressed = false;
 
   maxInit();
