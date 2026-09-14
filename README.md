@@ -32,11 +32,11 @@ commune ; l'adaptation électrique reste à concevoir et valider.
   bascule START/STOP.
 - D11 maintenu environ 650 ms enregistre les trois paramètres sur le pas ; si
   un enregistrement existe, il est effacé.
-- Chaque appui sur D13 règle le tap tempo ; D12 reste exclusivement START/STOP.
+- D13 maintenu + D12 : tap tempo ; D12 seul reste START/STOP.
 
 La matrice est montée avec un demi-tour (180°), compensé par le firmware ; les
 steps restent lisibles de gauche à droite. La colonne voisine de l'instrument
-indique MUTE, et le coin supérieur droit indique que le transport tourne.
+indique MUTE ; aucun témoin de transport n'est affiché en haut.
 
 Les six potentiomètres sont raccordés entre 5 V et GND, curseur vers A0–A5.
 Les cinq boutons sont normalement ouverts entre leur broche et GND ; le firmware

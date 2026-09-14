@@ -34,13 +34,13 @@ pas une validation audio ou matérielle.
 
 ## Évolutions
 
-- [x] Ajouter le tap tempo direct sur D13 et réserver D12 à START/STOP.
+- [x] Rétablir SHIFT sur D13 et le tap tempo avec SHIFT + D12.
 - [ ] Ajouter la sélection de forme d'onde et son affichage sur un écran secondaire.
 - [ ] ameliorer la selection de step: pot trop sensible, division de la course incertaine.
 - [ ] definir des modes de synthese plus adaptés aux instruments (ajout FM, redefinition des enveloppes)
 - [x] protéger contre le clipping (saturation)
 - [x] recherche d'une synthèse plus fidèle pour le hi-hat : composante inharmonique ajoutée
-- [x] ajouter le tap tempo direct sur D13 ;
+- [x] ajouter le tap tempo avec SHIFT + D12 ;
 - [ ] ajouter la sélection de forme d'onde et son affichage sur un écran secondaire.
 - [x] ajout d'une fonction REC/clear pour enregistrer les paramètres sonores propres à un step
 - [ ] evaluer memoire disponible pour enregistrer les beat, ajout d'une fonction pour parcourir les beats enregistrés

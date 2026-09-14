@@ -20,7 +20,7 @@
       D11 REC mode for selected step
           short press: enter/leave edit mode; long press: store parameters
       D12 START/STOP transport
-      D13 TAP TEMPO
+      D13 SHIFT; SHIFT + D12: tap tempo
       D3  RESET to step 1
     Matrix:
       DIN D4
@@ -86,7 +86,7 @@ const uint8_t PIN_FIRE_BUTTON = 8;
 // D9 = Mozzi PWM audio out. Leave D10 unused/spare for Mozzi/Timer1 headroom.
 const uint8_t PIN_REC_BUTTON = 11;
 const uint8_t PIN_START_STOP_BUTTON = 12;
-const uint8_t PIN_TAP_BUTTON = 13;
+const uint8_t PIN_SHIFT_BUTTON = 13;
 
 const uint8_t PIN_POT_INSTR = A0;
 const uint8_t PIN_POT_P1    = A1;
@@ -177,12 +177,11 @@ bool oldStepButton = HIGH;
 bool oldFireButton = HIGH;
 bool oldRecButton = HIGH;
 bool oldStartStopButton = HIGH;
-bool oldTapButton = HIGH;
+bool oldShiftButton = HIGH;
 uint32_t lastStepButtonEdgeUs = 0;
 uint32_t lastFireButtonEdgeUs = 0;
 uint32_t lastRecButtonEdgeUs = 0;
 uint32_t lastStartStopButtonEdgeUs = 0;
-uint32_t lastTapButtonEdgeUs = 0;
 uint32_t recPressStartedUs = 0;
 uint32_t lastTapTempoUs = 0;
 uint32_t firePressStartedUs = 0;
@@ -281,9 +280,6 @@ void drawDisplay() {
   setPixel(instrumentRow, 0, selectedMuteBlink);
   // Dedicated steady marker in the adjacent column makes MUTE unambiguous.
   setPixel(instrumentRow, 1, instrumentMuted[selectedInstrument]);
-
-  // Transport marker: top-right on while the sequencer is running.
-  setPixel(0, 7, sequencerRunning);
 
   // Three character parameters, one column each,
   // with one empty column between them.
@@ -1011,47 +1007,40 @@ void updateControlsUI() {
     }
   }
 
-  // D12 is exclusively START/STOP. A stop freezes the sequencer position;
+  // D12 is START/STOP, or tap tempo while SHIFT is held. A stop freezes the sequencer position;
   // voices already sounding are allowed to decay naturally.
   bool startStopRaw = digitalRead(PIN_START_STOP_BUTTON);
+  bool shiftRaw = digitalRead(PIN_SHIFT_BUTTON);
   if (startStopRaw != oldStartStopButton &&
       (uint32_t)(nowUs - lastStartStopButtonEdgeUs) >= BUTTON_DEBOUNCE_US) {
     oldStartStopButton = startStopRaw;
     lastStartStopButtonEdgeUs = nowUs;
     if (startStopRaw == LOW) {
-      stepEditMode = false;
-      sequencerRunning = !sequencerRunning;
-      if (sequencerRunning) {
-        nextStepDueUs = nowUs + stepDurationUs(currentStep);
-        clockPhaseOriginUs = nowUs;
+      if (shiftRaw == LOW) {
+        if (lastTapTempoUs != 0) {
+          uint32_t interval = nowUs - lastTapTempoUs;
+          if (interval >= TAP_MIN_INTERVAL_US && interval <= TAP_MAX_INTERVAL_US) {
+            uint16_t bpm = (uint16_t)(60000000UL / interval);
+            setTimingFromBPM(bpm);
+            externalClockActive = false;
+            if (sequencerRunning) {
+              nextStepDueUs = nowUs + stepDurationUs(currentStep);
+              clockPhaseOriginUs = nowUs;
+            }
+          }
+        }
+        lastTapTempoUs = nowUs;
+      } else {
+        stepEditMode = false;
+        sequencerRunning = !sequencerRunning;
+        if (sequencerRunning) {
+          nextStepDueUs = nowUs + stepDurationUs(currentStep);
+          clockPhaseOriginUs = nowUs;
+        }
       }
     }
   }
 
-  // D13 is a dedicated tap-tempo input. It no longer changes the meaning of
-  // D12, so START/STOP remains reliable even when D13 is not fitted.
-  bool tapRaw = digitalRead(PIN_TAP_BUTTON);
-  if (tapRaw != oldTapButton &&
-      (uint32_t)(nowUs - lastTapButtonEdgeUs) >= BUTTON_DEBOUNCE_US) {
-    oldTapButton = tapRaw;
-    lastTapButtonEdgeUs = nowUs;
-    if (tapRaw == LOW) {
-      stepEditMode = false;
-      if (lastTapTempoUs != 0) {
-        uint32_t interval = nowUs - lastTapTempoUs;
-        if (interval >= TAP_MIN_INTERVAL_US && interval <= TAP_MAX_INTERVAL_US) {
-          uint16_t bpm = (uint16_t)(60000000UL / interval);
-          setTimingFromBPM(bpm);
-          externalClockActive = false;
-          if (sequencerRunning) {
-            nextStepDueUs = nowUs + stepDurationUs(currentStep);
-            clockPhaseOriginUs = nowUs;
-          }
-        }
-      }
-      lastTapTempoUs = nowUs;
-    }
-  }
 
   // FIRE button (D8): immediate audition on press.
   // Long press toggles sequencer mute for the selected instrument.
@@ -1204,7 +1193,7 @@ void setup() {
   pinMode(PIN_FIRE_BUTTON, INPUT_PULLUP);
   pinMode(PIN_REC_BUTTON, INPUT_PULLUP);
   pinMode(PIN_START_STOP_BUTTON, INPUT_PULLUP);
-  pinMode(PIN_TAP_BUTTON, INPUT_PULLUP);
+  pinMode(PIN_SHIFT_BUTTON, INPUT_PULLUP);
   pinMode(PIN_CLOCK_FUTURE, INPUT_PULLUP);
 
   maxInit();

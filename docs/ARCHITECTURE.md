@@ -22,8 +22,8 @@ les potentiomètres, les boutons et l'affichage.
   paramètres utilisent un soft takeover au changement d'instrument.
 - Les boutons sont lus avec un anti-rebond de 20 ms. RESET pose un drapeau dans
   l'interruption ; le traitement est effectué ensuite dans `updateControl()`.
-- D12 commande exclusivement le transport. D13 reçoit les taps tempo et
-  l'intervalle entre deux appuis règle le tempo en désactivant l'horloge externe.
+- D12 commande le transport ; avec SHIFT maintenu sur D13, les appuis D12
+  règlent le tap tempo et désactivent l'horloge externe.
 - L'affichage applique une rotation de 270 degrés. La colonne 1 est un témoin
   fixe de MUTE et un flash bref du step sélectionné confirme une action D11.
 

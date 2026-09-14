@@ -34,7 +34,7 @@ D9 est réservé à l'audio ; D10 reste libre dans cette V13.
 | START/STOP | D12 | entrée numérique | bouton vers GND | `INPUT_PULLUP`, anti-rebond 20 ms |
 | CLOCK externe | D2 | entrée numérique | signal d'horloge protégé, masse commune | front montant = 1 pas |
 | Libre | D10 | — | ne rien câbler | D10 reste réservé/libre |
-| TAP TEMPO | D13 | entrée numérique | bouton vers GND | un appui = un tap |
+| SHIFT | D13 | entrée numérique | bouton vers GND | utilisé avec D12 |
 
 Tous les boutons utilisent la résistance de rappel interne. Le montage réel
 doit être vérifié pour les parasites, le rebond et les niveaux.
@@ -66,9 +66,9 @@ séquenceur est conservée et les voix déjà déclenchées finissent leur envel
 Au redémarrage, la lecture reprend à la position conservée. Le bouton est
 normalement ouvert : D12 — bouton — GND, sans résistance externe.
 
-Le bouton TAP TEMPO utilise D13, également reliée à la LED intégrée de l'UNO.
-Chaque appui sur D13 participe au calcul du tempo par l'intervalle entre les
-appuis. D12 reste exclusivement START/STOP.
+Le bouton SHIFT utilise D13, également reliée à la LED intégrée de l'UNO.
+Maintenir SHIFT et appuyer plusieurs fois sur D12 règle le tap tempo par
+l'intervalle entre les appuis. D12 seul reste START/STOP.
 
 Le bouton REC sur D11 ouvre le mode d'édition du step sélectionné par un appui
 court. Dans ce mode, seuls A1, A2 et A3 peuvent être modifiés sans le quitter.
@@ -79,9 +79,8 @@ quitte sans sauvegarder. La mémoire est volatile et est perdue à l'extinction.
 
 Pour les essais, vérifier au multimètre que chaque bouton est bien câblé entre
 la broche et GND, et non vers 5 V : D11 pour REC, D12 pour START/STOP et D13
-pour TAP TEMPO. Une entrée non câblée ou maintenue à LOW sur D13 peut générer
-des taps tempo parasites ; D12 reste néanmoins indépendant et commande toujours
-le transport.
+pour SHIFT. Une entrée non câblée ou maintenue à LOW sur D13 peut générer des
+taps tempo parasites ; D12 seul reste START/STOP.
 
 ## ⚠️ Avertissement — horloge externe sur D2
 
@@ -110,7 +109,7 @@ correspondance finale doit être vérifiée sur le module réel.
 
 La colonne 1 indique MUTE par un point fixe à côté de l'instrument sélectionné.
 Le point de sélection en colonne 0 continue de clignoter lorsqu'un instrument
-est muté. Le point en haut à droite indique que le transport fonctionne.
+est muté. Aucun témoin de transport n'est affiché en haut de la matrice.
 Après une action sur D11, le step édité est forcé brièvement allumé comme
 confirmation visuelle.
 
