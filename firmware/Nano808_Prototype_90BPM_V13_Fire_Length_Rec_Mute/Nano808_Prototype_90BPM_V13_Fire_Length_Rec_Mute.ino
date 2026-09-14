@@ -1020,12 +1020,15 @@ void updateControlsUI() {
     shiftPressed = (shiftRaw != shiftIdleState);
     lastShiftEdgeUs = nowUs;
   }
+  // Use the instantaneous changed-state as a fallback as well: this avoids
+  // losing SHIFT when D13 is pressed shortly before D12.
+  bool shiftActive = shiftPressed || (shiftRaw != shiftIdleState);
   if (startStopRaw != oldStartStopButton &&
       (uint32_t)(nowUs - lastStartStopButtonEdgeUs) >= BUTTON_DEBOUNCE_US) {
     oldStartStopButton = startStopRaw;
     lastStartStopButtonEdgeUs = nowUs;
     if (startStopRaw != startStopIdleState) {
-      if (shiftPressed) {
+      if (shiftActive) {
         if (lastTapTempoUs != 0) {
           uint32_t interval = nowUs - lastTapTempoUs;
           if (interval >= TAP_MIN_INTERVAL_US && interval <= TAP_MAX_INTERVAL_US) {
