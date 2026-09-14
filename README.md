@@ -30,6 +30,9 @@ commune ; l'adaptation électrique reste à concevoir et valider.
   moins 650 ms mute/unmute l'instrument pour la lecture séquencée.
 - D11 bascule la variation du pas sélectionné ; D3 réinitialise au pas 1 ; D12
   bascule START/STOP.
+- D11 maintenu environ 650 ms enregistre les trois paramètres sur le pas ; si
+  un enregistrement existe, il est effacé.
+- D13 maintenu + D12 : tap tempo ; D12 seul reste START/STOP.
 
 Les six potentiomètres sont raccordés entre 5 V et GND, curseur vers A0–A5.
 Les cinq boutons sont normalement ouverts entre leur broche et GND ; le firmware

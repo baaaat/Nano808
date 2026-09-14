@@ -12,6 +12,9 @@ les potentiomètres, les boutons et l'affichage.
 - Chaque instrument possède une `Voice` et un masque de pattern 16 bits.
   `variationPattern` ajoute un bit par pas et par instrument ;
   `instrumentMuted` ne bloque que la lecture automatique.
+- `stepSoundStored` et `stepSoundParam` permettent un snapshot des trois
+  paramètres par instrument et par pas. Au déclenchement, la `Voice` copie le
+  snapshot actif afin que le son reste stable pendant toute son enveloppe.
 - L'horloge interne est fixée à 90 BPM, avec quatre pas par temps.
   `stepDurationUs()` et `setTimingFromExternalStepPeriod()` centralisent la
   durée du séquenceur et du clignotement.
@@ -19,6 +22,9 @@ les potentiomètres, les boutons et l'affichage.
   paramètres utilisent un soft takeover au changement d'instrument.
 - Les boutons sont lus avec un anti-rebond de 20 ms. RESET pose un drapeau dans
   l'interruption ; le traitement est effectué ensuite dans `updateControl()`.
+- D12 commande le transport. Maintenir SHIFT sur D13 transforme D12 en tap
+  tempo ; l'intervalle entre deux appuis règle le tempo et désactive l'horloge
+  externe.
 
 ## Limites connues
 

@@ -18,7 +18,9 @@
       D7  step ON/OFF
       D8  FIRE (short press); MUTE selected instrument (long press)
       D11 REC/VARIATION for selected step
+          short press: variation; long press: store/clear sound parameters
       D12 START/STOP transport
+      D13 SHIFT; SHIFT + D12: tap tempo
       D3  RESET to step 1
     Matrix:
       DIN D4
@@ -84,6 +86,7 @@ const uint8_t PIN_FIRE_BUTTON = 8;
 // D9 = Mozzi PWM audio out. Leave D10 unused/spare for Mozzi/Timer1 headroom.
 const uint8_t PIN_REC_BUTTON = 11;
 const uint8_t PIN_START_STOP_BUTTON = 12;
+const uint8_t PIN_SHIFT_BUTTON = 13;
 
 const uint8_t PIN_POT_INSTR = A0;
 const uint8_t PIN_POT_P1    = A1;
@@ -146,6 +149,11 @@ uint16_t pattern[NUM_INSTRUMENTS] = {
 // REC toggles the bit for the selected instrument/step.
 uint16_t variationPattern[NUM_INSTRUMENTS] = {0, 0, 0, 0, 0, 0};
 
+// Optional per-step sound snapshots.  A bit says whether the corresponding
+// three parameter bytes are active for that step.  6 * 16 * 3 = 288 bytes.
+uint16_t stepSoundStored[NUM_INSTRUMENTS] = {0, 0, 0, 0, 0, 0};
+uint8_t stepSoundParam[NUM_INSTRUMENTS][16][3] = {{{0}}};
+
 // Mute affects sequencer playback only; FIRE can still audition a muted voice.
 bool instrumentMuted[NUM_INSTRUMENTS] = {false, false, false, false, false, false};
 
@@ -168,10 +176,16 @@ uint32_t lastStepButtonEdgeUs = 0;
 uint32_t lastFireButtonEdgeUs = 0;
 uint32_t lastRecButtonEdgeUs = 0;
 uint32_t lastStartStopButtonEdgeUs = 0;
+uint32_t recPressStartedUs = 0;
+uint32_t lastTapTempoUs = 0;
 uint32_t firePressStartedUs = 0;
 bool fireLongPressHandled = false;
+bool recLongPressHandled = false;
 const uint32_t BUTTON_DEBOUNCE_US = 20000UL;
 const uint32_t FIRE_LONG_PRESS_US = 650000UL;
+const uint32_t REC_LONG_PRESS_US = 650000UL;
+const uint32_t TAP_MIN_INTERVAL_US = 200000UL;
+const uint32_t TAP_MAX_INTERVAL_US = 2000000UL;
 
 // ---------------- MAX7219 ----------------
 uint8_t matrixRows[8] = {0};
@@ -345,6 +359,7 @@ struct Voice {
   uint16_t env;
   uint16_t age;
   uint16_t aux;
+  uint8_t soundParam[3];
   bool active;
 };
 
@@ -358,6 +373,9 @@ void triggerInstrument(uint8_t inst, bool variation) {
   x.env = 32767;
   x.age = 0;
   x.aux = variation ? 1 : 0; // reuse existing field: no extra RAM
+  x.soundParam[0] = param[inst][0];
+  x.soundParam[1] = param[inst][1];
+  x.soundParam[2] = param[inst][2];
   x.active = true;
 }
 
@@ -368,6 +386,11 @@ void triggerCurrentStep() {
 
     bool variation = ((variationPattern[i] >> currentStep) & 1U) != 0;
     triggerInstrument(i, variation);
+    if ((stepSoundStored[i] >> currentStep) & 1U) {
+      v[i].soundParam[0] = stepSoundParam[i][currentStep][0];
+      v[i].soundParam[1] = stepSoundParam[i][currentStep][1];
+      v[i].soundParam[2] = stepSoundParam[i][currentStep][2];
+    }
   }
 }
 
@@ -416,9 +439,9 @@ int16_t synthKick() {
   Voice &x = v[KICK];
   if (!x.active) return 0;
 
-  uint8_t tune  = param[KICK][0];
-  uint8_t decay = param[KICK][1];
-  uint8_t punch = param[KICK][2];
+  uint8_t tune  = x.soundParam[0];
+  uint8_t decay = x.soundParam[1];
+  uint8_t punch = x.soundParam[2];
   bool variation = x.aux != 0;
 
   uint16_t baseHz = 38 + ((uint16_t)tune * 42 >> 8); // 38..79
@@ -460,9 +483,9 @@ int16_t synthSnare() {
   Voice &x = v[SNARE];
   if (!x.active) return 0;
 
-  uint8_t tune  = param[SNARE][0];
-  uint8_t decay = param[SNARE][1];
-  uint8_t noiseAmt = param[SNARE][2];
+  uint8_t tune  = x.soundParam[0];
+  uint8_t decay = x.soundParam[1];
+  uint8_t noiseAmt = x.soundParam[2];
   bool variation = x.aux != 0;
 
   uint16_t f1 = 135 + ((uint16_t)tune * 80 >> 8);
@@ -495,9 +518,9 @@ int16_t synthSnare() {
 int16_t metallicHat(Voice &x, uint8_t inst, bool openHat) {
   if (!x.active) return 0;
 
-  uint8_t tone  = param[inst][0];
-  uint8_t decay = param[inst][1];
-  uint8_t metal = param[inst][2];
+  uint8_t tone  = x.soundParam[0];
+  uint8_t decay = x.soundParam[1];
+  uint8_t metal = x.soundParam[2];
   bool variation = x.aux != 0;
 
   uint16_t f1 = 820  + ((uint16_t)tone * 900 >> 8);
@@ -542,9 +565,9 @@ int16_t synthClap() {
   Voice &x = v[CLAP];
   if (!x.active) return 0;
 
-  uint8_t tone   = param[CLAP][0];
-  uint8_t decay  = param[CLAP][1];
-  uint8_t spread = param[CLAP][2];
+  uint8_t tone   = x.soundParam[0];
+  uint8_t decay  = x.soundParam[1];
+  uint8_t spread = x.soundParam[2];
   bool variation = x.aux != 0;
 
   int16_t n = noise8();
@@ -582,9 +605,9 @@ int16_t synthTom() {
   Voice &x = v[TOM];
   if (!x.active) return 0;
 
-  uint8_t tune  = param[TOM][0];
-  uint8_t decay = param[TOM][1];
-  uint8_t sweep = param[TOM][2];
+  uint8_t tune  = x.soundParam[0];
+  uint8_t decay = x.soundParam[1];
+  uint8_t sweep = x.soundParam[2];
   bool variation = x.aux != 0;
 
   uint16_t baseHz = 80 + ((uint16_t)tune * 180 >> 8);
@@ -959,15 +982,33 @@ void updateControlsUI() {
   // A stop freezes the sequencer position; voices already sounding are allowed
   // to decay naturally. Starting resumes from the current position.
   bool startStopRaw = digitalRead(PIN_START_STOP_BUTTON);
+  bool shiftRaw = digitalRead(PIN_SHIFT_BUTTON);
   if (startStopRaw != oldStartStopButton &&
       (uint32_t)(nowUs - lastStartStopButtonEdgeUs) >= BUTTON_DEBOUNCE_US) {
     oldStartStopButton = startStopRaw;
     lastStartStopButtonEdgeUs = nowUs;
     if (startStopRaw == LOW) {
-      sequencerRunning = !sequencerRunning;
-      if (sequencerRunning) {
-        nextStepDueUs = nowUs + stepDurationUs(currentStep);
-        clockPhaseOriginUs = nowUs;
+      if (shiftRaw == LOW) {
+        // SHIFT + START/STOP is a beat tap and does not alter transport.
+        if (lastTapTempoUs != 0) {
+          uint32_t interval = nowUs - lastTapTempoUs;
+          if (interval >= TAP_MIN_INTERVAL_US && interval <= TAP_MAX_INTERVAL_US) {
+            uint16_t bpm = (uint16_t)(60000000UL / interval);
+            setTimingFromBPM(bpm);
+            externalClockActive = false;
+            if (sequencerRunning) {
+              nextStepDueUs = nowUs + stepDurationUs(currentStep);
+              clockPhaseOriginUs = nowUs;
+            }
+          }
+        }
+        lastTapTempoUs = nowUs;
+      } else {
+        sequencerRunning = !sequencerRunning;
+        if (sequencerRunning) {
+          nextStepDueUs = nowUs + stepDurationUs(currentStep);
+          clockPhaseOriginUs = nowUs;
+        }
       }
     }
   }
@@ -993,16 +1034,33 @@ void updateControlsUI() {
     fireLongPressHandled = true;
   }
 
-  // REC / VARIATION button (D11): toggle a different timbre/accent for the
-  // selected instrument at the selected step. Pattern ON/OFF remains D7.
+  // REC / VARIATION button (D11): short press toggles a different timbre or
+  // accent. Long press stores the current sound parameters on the selected
+  // step, or clears them if a snapshot already exists.
   bool recRaw = digitalRead(PIN_REC_BUTTON);
   if (recRaw != oldRecButton &&
       (uint32_t)(nowUs - lastRecButtonEdgeUs) >= BUTTON_DEBOUNCE_US) {
     oldRecButton = recRaw;
     lastRecButtonEdgeUs = nowUs;
     if (recRaw == LOW) {
+      recPressStartedUs = nowUs;
+      recLongPressHandled = false;
       variationPattern[selectedInstrument] ^= (1U << selectedStep);
     }
+  }
+
+  if (recRaw == LOW && !recLongPressHandled &&
+      (uint32_t)(nowUs - recPressStartedUs) >= REC_LONG_PRESS_US) {
+    uint16_t mask = (uint16_t)(1U << selectedStep);
+    if (stepSoundStored[selectedInstrument] & mask) {
+      stepSoundStored[selectedInstrument] &= (uint16_t)~mask;
+    } else {
+      stepSoundParam[selectedInstrument][selectedStep][0] = param[selectedInstrument][0];
+      stepSoundParam[selectedInstrument][selectedStep][1] = param[selectedInstrument][1];
+      stepSoundParam[selectedInstrument][selectedStep][2] = param[selectedInstrument][2];
+      stepSoundStored[selectedInstrument] |= mask;
+    }
+    recLongPressHandled = true;
   }
 }
 
@@ -1082,6 +1140,7 @@ void setup() {
   pinMode(PIN_FIRE_BUTTON, INPUT_PULLUP);
   pinMode(PIN_REC_BUTTON, INPUT_PULLUP);
   pinMode(PIN_START_STOP_BUTTON, INPUT_PULLUP);
+  pinMode(PIN_SHIFT_BUTTON, INPUT_PULLUP);
   pinMode(PIN_CLOCK_FUTURE, INPUT_PULLUP);
 
   maxInit();

@@ -43,7 +43,7 @@ La philosophie reprend Mutant/Freaq : contrôle direct, peu de menus, séquenceu
 | D10 | réservé / laisser libre | ne rien câbler |
 | D11 | REC / VARIATION | bouton poussoir vers GND |
 | D12 | START / STOP | bouton poussoir vers GND |
-| D13 | libre | LED intégrée possible |
+| D13 | SHIFT | bouton poussoir vers GND ; LED intégrée indisponible |
 | 5V | rail logique | pots + MAX7219 |
 | GND | masse | masse commune |
 
@@ -109,6 +109,13 @@ Quand l'instrument sélectionné est muté, son point dans la colonne instrument
 
 Appui :
 - bascule la variation du step sélectionné pour l'instrument sélectionné.
+
+Appui long, environ 0,65 s :
+- enregistre les trois paramètres actuels sur le step sélectionné ;
+- si ce step possède déjà un enregistrement, l'efface.
+
+Le rappel des paramètres enregistrés est automatique pendant la lecture. Ces
+valeurs sont conservées en RAM uniquement et sont perdues à l'extinction.
 
 Cette V13 utilise une variation légère et spécifique à chaque percussion :
 - Kick : davantage de punch + accord légèrement plus haut ;

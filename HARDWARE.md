@@ -33,7 +33,8 @@ D9 est réservé à l'audio ; D10 reste libre dans cette V13.
 | Audio Mozzi | D9 | sortie PWM | filtre audio | broche réservée |
 | START/STOP | D12 | entrée numérique | bouton vers GND | `INPUT_PULLUP`, anti-rebond 20 ms |
 | CLOCK externe | D2 | entrée numérique | signal d'horloge protégé, masse commune | front montant = 1 pas |
-| Libre | D10, D13 | — | ne rien câbler | D13 : LED future possible |
+| Libre | D10 | — | ne rien câbler | D10 reste réservé/libre |
+| SHIFT | D13 | entrée numérique | bouton vers GND | utilisé avec D12 |
 
 Tous les boutons utilisent la résistance de rappel interne. Le montage réel
 doit être vérifié pour les parasites, le rebond et les niveaux.
@@ -64,6 +65,17 @@ Le bouton START/STOP sur D12 bascule le transport. À l'arrêt, la position du
 séquenceur est conservée et les voix déjà déclenchées finissent leur enveloppe.
 Au redémarrage, la lecture reprend à la position conservée. Le bouton est
 normalement ouvert : D12 — bouton — GND, sans résistance externe.
+
+Le bouton SHIFT utilise D13, également reliée à la LED intégrée de l'UNO. Son
+association avec D12 transforme temporairement D12 en tap tempo : maintenir
+SHIFT et appuyer plusieurs fois sur START/STOP règle le tempo par l'intervalle
+entre les appuis. Un appui sur D12 seul conserve la fonction START/STOP.
+
+Le bouton REC sur D11 conserve deux actions : un appui court bascule la
+variation du pas ; un appui long (environ 650 ms) enregistre les trois
+paramètres actuels sur ce pas. Si un enregistrement existe déjà, un nouvel
+appui long l'efface. Le rappel des paramètres est automatique à la lecture du
+pas. La mémoire est volatile et est perdue à l'extinction.
 
 ## ⚠️ Avertissement — horloge externe sur D2
 
