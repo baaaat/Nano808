@@ -17,10 +17,10 @@
     Buttons:
       D7  step ON/OFF
       D8  FIRE (short press); MUTE selected instrument (long press)
-      D11 REC/VARIATION for selected step
-          short press: variation; long press: store/clear sound parameters
+      D11 REC mode for selected step
+          short press: enter/leave edit mode; long press: store parameters
       D12 START/STOP transport
-      D13 SHIFT; SHIFT + D12: tap tempo
+      D13 TAP TEMPO
       D3  RESET to step 1
     Matrix:
       DIN D4
@@ -86,7 +86,7 @@ const uint8_t PIN_FIRE_BUTTON = 8;
 // D9 = Mozzi PWM audio out. Leave D10 unused/spare for Mozzi/Timer1 headroom.
 const uint8_t PIN_REC_BUTTON = 11;
 const uint8_t PIN_START_STOP_BUTTON = 12;
-const uint8_t PIN_SHIFT_BUTTON = 13;
+const uint8_t PIN_TAP_BUTTON = 13;
 
 const uint8_t PIN_POT_INSTR = A0;
 const uint8_t PIN_POT_P1    = A1;
@@ -128,6 +128,7 @@ uint8_t swingPercent = 0;
 
 uint8_t currentStep = 0;
 bool sequencerRunning = true;
+bool stepEditMode = false;
 uint8_t selectedInstrument = 0;
 uint8_t selectedStep = 0;
 uint8_t patternLength = 16;
@@ -172,15 +173,18 @@ bool oldStepButton = HIGH;
 bool oldFireButton = HIGH;
 bool oldRecButton = HIGH;
 bool oldStartStopButton = HIGH;
+bool oldTapButton = HIGH;
 uint32_t lastStepButtonEdgeUs = 0;
 uint32_t lastFireButtonEdgeUs = 0;
 uint32_t lastRecButtonEdgeUs = 0;
 uint32_t lastStartStopButtonEdgeUs = 0;
+uint32_t lastTapButtonEdgeUs = 0;
 uint32_t recPressStartedUs = 0;
 uint32_t lastTapTempoUs = 0;
 uint32_t firePressStartedUs = 0;
 bool fireLongPressHandled = false;
 bool recLongPressHandled = false;
+bool recPressWasEditing = false;
 const uint32_t BUTTON_DEBOUNCE_US = 20000UL;
 const uint32_t FIRE_LONG_PRESS_US = 650000UL;
 const uint32_t REC_LONG_PRESS_US = 650000UL;
@@ -228,13 +232,13 @@ void setPixelRaw(uint8_t row, uint8_t col, bool on) {
 }
 
 // Logical display coordinates -> physical matrix coordinates.
-// The physical interface is mounted half-turned (180 degrees). Logical
+// The physical interface is mounted at 270 degrees. Logical
 // coordinates remain normal so the step rows still read left to right.
 void setPixel(uint8_t row, uint8_t col, bool on) {
   if (row > 7 || col > 7) return;
 
-  uint8_t physicalRow = 7 - row;
-  uint8_t physicalCol = 7 - col;
+  uint8_t physicalRow = 7 - col;
+  uint8_t physicalCol = row;
   setPixelRaw(physicalRow, physicalCol, on);
 }
 
@@ -242,9 +246,16 @@ void setPixel(uint8_t row, uint8_t col, bool on) {
 // Value grows upward from row 5 toward row 0.
 void drawBargraph(uint8_t col, uint8_t value) {
   uint8_t levels = ((uint16_t)value * 6 + 254) / 255; // 0..6
+  bool visible = true;
+  if (stepEditMode) {
+    uint32_t phase = (uint32_t)(micros() - clockPhaseOriginUs);
+    uint32_t halfBeat = beatPeriodUs >> 1;
+    if (halfBeat == 0) halfBeat = 1;
+    visible = ((phase / halfBeat) & 1UL) == 0;
+  }
 
   for (uint8_t row = 0; row < 6; row++) {
-    bool on = row >= (6 - levels);
+    bool on = visible && row >= (6 - levels);
     setPixel(row, col, on);
   }
 }
@@ -955,15 +966,19 @@ void updateControlsUI() {
       readInstrumentSelector(mozziAnalogRead(PIN_POT_INSTR));
 
   if (newInstrument != selectedInstrument) {
+    stepEditMode = false;
     selectedInstrument = newInstrument;
     // Keep each instrument's own stored params; no confirmation sound.
     armSoftTakeover();
   }
 
-  selectedStep = readStepSelector(mozziAnalogRead(PIN_POT_STEP));
+  uint8_t newSelectedStep = readStepSelector(mozziAnalogRead(PIN_POT_STEP));
+  if (newSelectedStep != selectedStep) stepEditMode = false;
+  selectedStep = newSelectedStep;
 
   uint8_t newLength = readPatternLength(mozziAnalogRead(PIN_POT_LENGTH));
   if (newLength != patternLength) {
+    stepEditMode = false;
     patternLength = newLength;
     if (currentStep >= patternLength) {
       currentStep = 0;
@@ -983,42 +998,50 @@ void updateControlsUI() {
     oldStepButton = stepRaw;
     lastStepButtonEdgeUs = nowUs;
     if (stepRaw == LOW) {
+      stepEditMode = false;
       pattern[selectedInstrument] ^= (1U << selectedStep);
     }
   }
 
-  // START/STOP transport button (D12).
-  // A stop freezes the sequencer position; voices already sounding are allowed
-  // to decay naturally. Starting resumes from the current position.
+  // D12 is exclusively START/STOP. A stop freezes the sequencer position;
+  // voices already sounding are allowed to decay naturally.
   bool startStopRaw = digitalRead(PIN_START_STOP_BUTTON);
-  bool shiftRaw = digitalRead(PIN_SHIFT_BUTTON);
   if (startStopRaw != oldStartStopButton &&
       (uint32_t)(nowUs - lastStartStopButtonEdgeUs) >= BUTTON_DEBOUNCE_US) {
     oldStartStopButton = startStopRaw;
     lastStartStopButtonEdgeUs = nowUs;
     if (startStopRaw == LOW) {
-      if (shiftRaw == LOW) {
-        // SHIFT + START/STOP is a beat tap and does not alter transport.
-        if (lastTapTempoUs != 0) {
-          uint32_t interval = nowUs - lastTapTempoUs;
-          if (interval >= TAP_MIN_INTERVAL_US && interval <= TAP_MAX_INTERVAL_US) {
-            uint16_t bpm = (uint16_t)(60000000UL / interval);
-            setTimingFromBPM(bpm);
-            externalClockActive = false;
-            if (sequencerRunning) {
-              nextStepDueUs = nowUs + stepDurationUs(currentStep);
-              clockPhaseOriginUs = nowUs;
-            }
+      stepEditMode = false;
+      sequencerRunning = !sequencerRunning;
+      if (sequencerRunning) {
+        nextStepDueUs = nowUs + stepDurationUs(currentStep);
+        clockPhaseOriginUs = nowUs;
+      }
+    }
+  }
+
+  // D13 is a dedicated tap-tempo input. It no longer changes the meaning of
+  // D12, so START/STOP remains reliable even when D13 is not fitted.
+  bool tapRaw = digitalRead(PIN_TAP_BUTTON);
+  if (tapRaw != oldTapButton &&
+      (uint32_t)(nowUs - lastTapButtonEdgeUs) >= BUTTON_DEBOUNCE_US) {
+    oldTapButton = tapRaw;
+    lastTapButtonEdgeUs = nowUs;
+    if (tapRaw == LOW) {
+      stepEditMode = false;
+      if (lastTapTempoUs != 0) {
+        uint32_t interval = nowUs - lastTapTempoUs;
+        if (interval >= TAP_MIN_INTERVAL_US && interval <= TAP_MAX_INTERVAL_US) {
+          uint16_t bpm = (uint16_t)(60000000UL / interval);
+          setTimingFromBPM(bpm);
+          externalClockActive = false;
+          if (sequencerRunning) {
+            nextStepDueUs = nowUs + stepDurationUs(currentStep);
+            clockPhaseOriginUs = nowUs;
           }
         }
-        lastTapTempoUs = nowUs;
-      } else {
-        sequencerRunning = !sequencerRunning;
-        if (sequencerRunning) {
-          nextStepDueUs = nowUs + stepDurationUs(currentStep);
-          clockPhaseOriginUs = nowUs;
-        }
       }
+      lastTapTempoUs = nowUs;
     }
   }
 
@@ -1031,6 +1054,7 @@ void updateControlsUI() {
     lastFireButtonEdgeUs = nowUs;
 
     if (fireRaw == LOW) {
+      stepEditMode = false;
       firePressStartedUs = nowUs;
       fireLongPressHandled = false;
       triggerInstrument(selectedInstrument, false);
@@ -1043,9 +1067,9 @@ void updateControlsUI() {
     fireLongPressHandled = true;
   }
 
-  // REC / VARIATION button (D11): short press toggles a different timbre or
-  // accent. Long press stores the current sound parameters on the selected
-  // step, or clears them if a snapshot already exists.
+  // REC button (D11): short press enters/leaves step edit mode. A long press
+  // while already editing stores the current A1-A3 values for this step; a
+  // later long press clears the stored snapshot.
   bool recRaw = digitalRead(PIN_REC_BUTTON);
   if (recRaw != oldRecButton &&
       (uint32_t)(nowUs - lastRecButtonEdgeUs) >= BUTTON_DEBOUNCE_US) {
@@ -1053,9 +1077,20 @@ void updateControlsUI() {
     lastRecButtonEdgeUs = nowUs;
     if (recRaw == LOW) {
       recPressStartedUs = nowUs;
-      recLongPressHandled = false;
+      bool wasEditing = stepEditMode;
+      recPressWasEditing = wasEditing;
+      // The first short press enters edit mode. A later press while editing
+      // arms the long-press save without leaving the mode.
+      if (!wasEditing) {
+        stepEditMode = true;
+        recLongPressHandled = true;
+      } else {
+        recLongPressHandled = false;
+      }
       recFeedbackUntilUs = nowUs + 250000UL;
-      variationPattern[selectedInstrument] ^= (1U << selectedStep);
+    }
+    if (recRaw == HIGH && recPressWasEditing && !recLongPressHandled) {
+      stepEditMode = false;
     }
   }
 
@@ -1151,7 +1186,7 @@ void setup() {
   pinMode(PIN_FIRE_BUTTON, INPUT_PULLUP);
   pinMode(PIN_REC_BUTTON, INPUT_PULLUP);
   pinMode(PIN_START_STOP_BUTTON, INPUT_PULLUP);
-  pinMode(PIN_SHIFT_BUTTON, INPUT_PULLUP);
+  pinMode(PIN_TAP_BUTTON, INPUT_PULLUP);
   pinMode(PIN_CLOCK_FUTURE, INPUT_PULLUP);
 
   maxInit();

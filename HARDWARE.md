@@ -34,7 +34,7 @@ D9 est réservé à l'audio ; D10 reste libre dans cette V13.
 | START/STOP | D12 | entrée numérique | bouton vers GND | `INPUT_PULLUP`, anti-rebond 20 ms |
 | CLOCK externe | D2 | entrée numérique | signal d'horloge protégé, masse commune | front montant = 1 pas |
 | Libre | D10 | — | ne rien câbler | D10 reste réservé/libre |
-| SHIFT | D13 | entrée numérique | bouton vers GND | utilisé avec D12 |
+| TAP TEMPO | D13 | entrée numérique | bouton vers GND | un appui = un tap |
 
 Tous les boutons utilisent la résistance de rappel interne. Le montage réel
 doit être vérifié pour les parasites, le rebond et les niveaux.
@@ -66,21 +66,22 @@ séquenceur est conservée et les voix déjà déclenchées finissent leur envel
 Au redémarrage, la lecture reprend à la position conservée. Le bouton est
 normalement ouvert : D12 — bouton — GND, sans résistance externe.
 
-Le bouton SHIFT utilise D13, également reliée à la LED intégrée de l'UNO. Son
-association avec D12 transforme temporairement D12 en tap tempo : maintenir
-SHIFT et appuyer plusieurs fois sur START/STOP règle le tempo par l'intervalle
-entre les appuis. Un appui sur D12 seul conserve la fonction START/STOP.
+Le bouton TAP TEMPO utilise D13, également reliée à la LED intégrée de l'UNO.
+Chaque appui sur D13 participe au calcul du tempo par l'intervalle entre les
+appuis. D12 reste exclusivement START/STOP.
 
-Le bouton REC sur D11 conserve deux actions : un appui court bascule la
-variation du pas ; un appui long (environ 650 ms) enregistre les trois
-paramètres actuels sur ce pas. Si un enregistrement existe déjà, un nouvel
-appui long l'efface. Le rappel des paramètres est automatique à la lecture du
-pas. La mémoire est volatile et est perdue à l'extinction.
+Le bouton REC sur D11 ouvre le mode d'édition du step sélectionné par un appui
+court. Dans ce mode, seuls A1, A2 et A3 peuvent être modifiés sans le quitter.
+Les trois bargraphes clignotent pendant ce mode. Un appui long sur D11 en mode
+d'édition enregistre les variations A1–A3 du step ; un nouvel appui long
+efface le snapshot. Un appui court sur D11 alors que le mode est actif le
+quitte sans sauvegarder. La mémoire est volatile et est perdue à l'extinction.
 
 Pour les essais, vérifier au multimètre que chaque bouton est bien câblé entre
 la broche et GND, et non vers 5 V : D11 pour REC, D12 pour START/STOP et D13
-pour SHIFT. Une entrée non câblée ou maintenue à LOW sur D13 peut faire
-interpréter les appuis D12 comme des taps tempo au lieu de START/STOP.
+pour TAP TEMPO. Une entrée non câblée ou maintenue à LOW sur D13 peut générer
+des taps tempo parasites ; D12 reste néanmoins indépendant et commande toujours
+le transport.
 
 ## ⚠️ Avertissement — horloge externe sur D2
 
@@ -101,7 +102,7 @@ VCC va au 5 V et GND à la masse commune. Prévoir au plus près du module au
 minimum 100 nF entre 5 V et GND ; le guide V13 recommande aussi 100 µF de
 réserve. Éviter de faire passer le retour MAX7219 par le chemin audio.
 
-L'interface est montée avec une rotation de 180 degrés. Le firmware compense
+L'interface est montée avec une rotation de 270 degrés. Le firmware compense
 cette rotation : l'affichage logique place l'instrument en colonne 0, les
 bargraphes des trois paramètres en colonnes 2, 4 et 6, puis les pas 1–8 et
 9–16 sur les deux lignes du bas, toujours lus de gauche à droite. La

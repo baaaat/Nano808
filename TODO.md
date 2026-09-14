@@ -24,8 +24,8 @@ pas une validation audio ou matérielle.
 - [ ] Tester le MAX7219, son découplage et les retours de masse.
 - [ ] Mesurer le filtre audio D9, le niveau Eurorack et le bruit avec matrice active.
 - [ ] Confirmer alimentation 9 V, régulation 5 V, protections et connecteur Eurorack.
-- [ ] Vérifier orientation de matrice et mesurer les extrémités ADC réelles des potentiomètres.
-- [ ] Vérifier sur le prototype la rotation 180°, les témoins MUTE/transport et le flash REC.
+- [ ] Vérifier orientation 270° et mesurer les extrémités ADC réelles des potentiomètres.
+- [ ] Vérifier sur le prototype la rotation 270°, les témoins MUTE/transport et le flash REC.
 - [ ] Tester au multimètre le câblage D11/D12/D13 puis l'anti-rebond, START/STOP,
   FIRE court/long, MUTE, REC, RESET et longueur.
 - [ ] Vérifier stabilité audio pendant séquenceur, affichage et commandes.
@@ -34,13 +34,14 @@ pas une validation audio ou matérielle.
 
 ## Évolutions
 
-- [x] Ajouter SHIFT sur D13 et tap tempo via SHIFT + START/STOP.
+- [x] Ajouter le tap tempo direct sur D13 et réserver D12 à START/STOP.
 - [ ] Ajouter la sélection de forme d'onde et son affichage sur un écran secondaire.
 - [ ] ameliorer la selection de step: pot trop sensible, division de la course incertaine.
 - [ ] definir des modes de synthese plus adaptés aux instruments (ajout FM, redefinition des enveloppes)
 - [x] protéger contre le clipping (saturation)
 - [x] recherche d'une synthèse plus fidèle pour le hi-hat : composante inharmonique ajoutée
-- [ ] ajout d'un bouton shift et acces à de nouveles fonctions: tap tempo/ forme d'onde (à materialiser graphiquement sur un ecran secondaire)
+- [x] ajouter le tap tempo direct sur D13 ;
+- [ ] ajouter la sélection de forme d'onde et son affichage sur un écran secondaire.
 - [x] ajout d'une fonction REC/clear pour enregistrer les paramètres sonores propres à un step
 - [ ] evaluer memoire disponible pour enregistrer les beat, ajout d'une fonction pour parcourir les beats enregistrés
 - [ ] Définir et valider le circuit de protection de l'entrée CLOCK externe D2.

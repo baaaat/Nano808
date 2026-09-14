@@ -28,12 +28,11 @@ commune ; l'adaptation électrique reste à concevoir et valider.
 - Affichage sur matrice 8×8 MAX7219 et sortie PWM Mozzi sur D9.
 - D7 bascule le pas sélectionné ; D8 court déclenche FIRE ; D8 maintenu au
   moins 650 ms mute/unmute l'instrument pour la lecture séquencée.
-- D11 bascule la variation du pas sélectionné ; D3 réinitialise au pas 1 ; D12
+- D11 ouvre/ferme le mode d'édition du pas ; D3 réinitialise au pas 1 ; D12
   bascule START/STOP.
 - D11 maintenu environ 650 ms enregistre les trois paramètres sur le pas ; si
   un enregistrement existe, il est effacé.
-- D13 maintenu + D12 : tap tempo ; D12 seul reste START/STOP. D13 doit rester
-  à HIGH lorsqu'aucun bouton SHIFT n'est appuyé.
+- Chaque appui sur D13 règle le tap tempo ; D12 reste exclusivement START/STOP.
 
 La matrice est montée avec un demi-tour (180°), compensé par le firmware ; les
 steps restent lisibles de gauche à droite. La colonne voisine de l'instrument
