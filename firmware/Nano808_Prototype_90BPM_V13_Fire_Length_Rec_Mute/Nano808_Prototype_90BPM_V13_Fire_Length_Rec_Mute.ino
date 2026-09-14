@@ -168,6 +168,10 @@ uint8_t param[NUM_INSTRUMENTS][3] = {
   {130, 145, 140}  // Tom: tune, decay, sweep
 };
 
+// Temporary parameter values for the selected step while REC edit mode is
+// active. They do not affect any other step until a long REC press stores them.
+uint8_t editParam[3] = {0, 0, 0};
+
 // Buttons / debounce
 bool oldStepButton = HIGH;
 bool oldFireButton = HIGH;
@@ -283,9 +287,9 @@ void drawDisplay() {
 
   // Three character parameters, one column each,
   // with one empty column between them.
-  drawBargraph(2, param[selectedInstrument][0]);
-  drawBargraph(4, param[selectedInstrument][1]);
-  drawBargraph(6, param[selectedInstrument][2]);
+  drawBargraph(2, stepEditMode ? editParam[0] : param[selectedInstrument][0]);
+  drawBargraph(4, stepEditMode ? editParam[1] : param[selectedInstrument][1]);
+  drawBargraph(6, stepEditMode ? editParam[2] : param[selectedInstrument][2]);
 
   // Columns 1, 3, 5 and 7 intentionally left empty.
 
@@ -301,9 +305,9 @@ void drawDisplay() {
 
     uint8_t row = (s < 8) ? 6 : 7;
 
-    // The 180-degree coordinate transform above preserves left-to-right
-    // reading order for steps 1..8 and 9..16.
-    uint8_t col = s & 7;
+    // Reverse the logical columns for the mounted interface so steps 1..8
+    // and 9..16 are read from left to right by the performer.
+    uint8_t col = 7 - (s & 7);
 
     bool on = active || cursor;
 
@@ -781,7 +785,8 @@ void handleSoftTakeover(uint8_t index, int raw) {
   if (filtered > 255) filtered = 255;
   parameterFiltered[index] = (uint8_t)filtered;
   uint8_t stablePhysical = parameterFiltered[index];
-  uint8_t stored = param[selectedInstrument][index];
+  uint8_t stored = stepEditMode ? editParam[index]
+                                : param[selectedInstrument][index];
 
   if (!pickup[index]) {
     int16_t d = (int16_t)stablePhysical - (int16_t)stored;
@@ -801,9 +806,12 @@ void handleSoftTakeover(uint8_t index, int raw) {
   }
 
   if (pickup[index]) {
-    int16_t delta = (int16_t)stablePhysical - param[selectedInstrument][index];
+    uint8_t current = stepEditMode ? editParam[index]
+                                   : param[selectedInstrument][index];
+    int16_t delta = (int16_t)stablePhysical - current;
     if (delta >= PARAMETER_DEADBAND || delta <= -PARAMETER_DEADBAND) {
-      param[selectedInstrument][index] = stablePhysical;
+      if (stepEditMode) editParam[index] = stablePhysical;
+      else param[selectedInstrument][index] = stablePhysical;
     }
   }
 
@@ -1082,6 +1090,16 @@ void updateControlsUI() {
       // The first short press enters edit mode. A later press while editing
       // arms the long-press save without leaving the mode.
       if (!wasEditing) {
+        uint16_t mask = (uint16_t)(1U << selectedStep);
+        if (stepSoundStored[selectedInstrument] & mask) {
+          editParam[0] = stepSoundParam[selectedInstrument][selectedStep][0];
+          editParam[1] = stepSoundParam[selectedInstrument][selectedStep][1];
+          editParam[2] = stepSoundParam[selectedInstrument][selectedStep][2];
+        } else {
+          editParam[0] = param[selectedInstrument][0];
+          editParam[1] = param[selectedInstrument][1];
+          editParam[2] = param[selectedInstrument][2];
+        }
         stepEditMode = true;
         recLongPressHandled = true;
       } else {
@@ -1100,9 +1118,9 @@ void updateControlsUI() {
     if (stepSoundStored[selectedInstrument] & mask) {
       stepSoundStored[selectedInstrument] &= (uint16_t)~mask;
     } else {
-      stepSoundParam[selectedInstrument][selectedStep][0] = param[selectedInstrument][0];
-      stepSoundParam[selectedInstrument][selectedStep][1] = param[selectedInstrument][1];
-      stepSoundParam[selectedInstrument][selectedStep][2] = param[selectedInstrument][2];
+      stepSoundParam[selectedInstrument][selectedStep][0] = editParam[0];
+      stepSoundParam[selectedInstrument][selectedStep][1] = editParam[1];
+      stepSoundParam[selectedInstrument][selectedStep][2] = editParam[2];
       stepSoundStored[selectedInstrument] |= mask;
     }
     recFeedbackUntilUs = nowUs + 450000UL;
